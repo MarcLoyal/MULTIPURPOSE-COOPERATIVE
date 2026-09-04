@@ -1,3 +1,10 @@
+// In local dev this is empty and requests go through Vite's /api proxy
+// (see vite.config.ts) to the backend on :4000. In production the
+// frontend and backend are deployed as separate Vercel projects, so
+// VITE_API_URL must point at the backend's deployed URL, e.g.
+// "https://coop-mvp-server.vercel.app".
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
 const TOKEN_KEY = "coop_mvp_token";
 
 export function getToken(): string | null {
@@ -28,7 +35,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE_URL}/api${path}`, { ...options, headers });
 
   if (!res.ok) {
     let message = res.statusText;

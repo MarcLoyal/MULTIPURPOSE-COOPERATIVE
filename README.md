@@ -5,8 +5,10 @@ membership, share capital, basic lending, cash/accounting, and an
 audit-trail foundation. Built per the MVP spec: Member → Transaction →
 Approval → Accounting → Audit Trail.
 
-Local/dev prototype only — no production deployment, backups, or data
-migration tooling (see "Non-goals" below).
+Runs locally for development (see Setup below), and is also deployable to
+Vercel + Supabase (see Deployment below) for a hosted demo. Backups and
+data migration tooling from existing Excel/paper records are still out of
+scope for the MVP (see "Non-goals" below).
 
 ## Stack
 
@@ -69,6 +71,69 @@ npm run dev   # http://localhost:5173 (proxies /api to :4000)
 ```
 
 Open http://localhost:5173 and sign in with any seeded account above.
+
+## Deployment (Vercel + Supabase)
+
+The frontend and backend deploy as **two separate Vercel projects** from
+this same repo (one repo, two "Root Directory" settings), backed by a
+Supabase Postgres database. Vercel doesn't run long-lived servers, so the
+backend runs as a serverless function (`server/api/index.ts` wraps the
+same Express `app` with `serverless-http` — local dev still uses
+`src/index.ts` with `app.listen`, unchanged).
+
+### 1. Supabase database
+
+1. Create a project at supabase.com (or use an existing one).
+2. Project Settings → Database → Connection string, and grab **two**
+   connection strings:
+   - **Transaction pooler** (port `6543`) → this is `DATABASE_URL`. Append
+     `&pgbouncer=true&connection_limit=1` — required because serverless
+     functions each open their own short-lived connection, and pgbouncer's
+     transaction mode doesn't support Prisma's default prepared
+     statements/connection reuse otherwise.
+   - **Direct connection** (port `5432`) → this is `DIRECT_URL`, used only
+     for running migrations (pgbouncer's pooler can't run them).
+
+### 2. Backend → Vercel project #1
+
+1. New Vercel project, **Root Directory: `server`**.
+2. Environment variables: `DATABASE_URL`, `DIRECT_URL` (from Supabase
+   above), `JWT_SECRET` (any long random string), `CLIENT_ORIGIN` (the
+   frontend's Vercel URL, comma-separated if you need to allow more than
+   one — e.g. production + a preview URL).
+3. Deploy. The build (`npm run vercel-build`, see `server/package.json`)
+   runs `prisma generate && prisma migrate deploy` automatically, so
+   migrations apply on every deploy — no separate migration step needed.
+4. Note the deployed URL (e.g. `https://coop-mvp-server.vercel.app`) —
+   the frontend needs it next.
+5. Seed demo users once, from your machine, pointed at Supabase:
+   ```bash
+   cd server
+   DATABASE_URL="<supabase pooler url>" DIRECT_URL="<supabase direct url>" npm run seed
+   ```
+
+### 3. Frontend → Vercel project #2
+
+1. New Vercel project, **Root Directory: `client`** (Vercel auto-detects
+   the Vite framework preset).
+2. Environment variable: `VITE_API_URL` = the backend URL from step 2.4
+   above (no trailing slash).
+3. Deploy.
+4. Go back to the backend project and set `CLIENT_ORIGIN` to this
+   frontend's URL if you hadn't already (step 2.2), then redeploy the
+   backend so CORS allows it.
+
+### Notes
+
+- `server/vercel.json` routes every request to the one serverless
+  function; `client/vercel.json` adds the SPA rewrite so React Router
+  routes survive a hard refresh.
+- The Prisma schema's `generator` block sets
+  `binaryTargets = ["native", "rhel-openssl-3.0.x"]` so the query engine
+  matches Vercel's Amazon-Linux runtime, not just your local machine.
+- `src/lib/prisma.ts` caches the `PrismaClient` on `globalThis` so a warm
+  serverless container reuses its connection instead of opening a new one
+  per invocation.
 
 ## What's implemented (MVP scope, spec section 6)
 

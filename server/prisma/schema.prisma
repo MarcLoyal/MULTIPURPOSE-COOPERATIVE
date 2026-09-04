@@ -1,10 +1,17 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled connection (Supabase's pgbouncer, port 6543) — used at runtime.
+  // Required when running as Vercel serverless functions, where every
+  // invocation can open a new connection.
+  url       = env("DATABASE_URL")
+  // Direct connection (port 5432) — used only for migrations, which need
+  // a real session (pgbouncer's transaction pooling mode breaks them).
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------

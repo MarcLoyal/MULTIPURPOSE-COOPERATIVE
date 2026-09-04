@@ -14,7 +14,18 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 
 export const app = express();
 
-app.use(cors({ origin: env.clientOrigin }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // No Origin header (e.g. curl, server-to-server) — allow.
+      if (!origin || env.clientOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} is not allowed`));
+      }
+    },
+  })
+);
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
