@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  cashier
+  credit_officer
+  manager
+  accountant
+  admin
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum MemberStatus {
+  active
+  inactive
+  resigned
+  deceased
+  terminated
+}
+
+enum ShareCapitalTxnType {
+  subscription
+  additional_purchase
+  withdrawal
+  transfer
+  dividend
+}
+
+enum ShareCapitalTxnStatus {
+  pending
+  approved
+  rejected
+  posted
+}
+
+enum LoanStatus {
+  applied
+  under_review
+  approved
+  released
+  active
+  past_due
+  restructured
+  closed
+  rejected
+}
+
+enum LoanTxnType {
+  release
+  repayment
+  penalty
+  restructure
+}
+
+enum CashTxnType {
+  collection
+  disbursement
+  petty_cash
+  cash_advance
+  bank_deposit
+}
+
+enum LedgerSourceType {
+  share_capital
+  loan
+  cash
+  manual
+}
+
+enum AuditAction {
+  create
+  update
+  approve
+  reject
+  delete_attempt
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  membersCreated Member[] @relation("MemberCreatedBy")
+
+  @@map("users")
+}
+
+model Member {
+  id                       String       @id @default(uuid())
+  memberNumber             String       @unique @map("member_number")
+  fullName                 String       @map("full_name")
+  phone                    String?
+  email                    String?
+  address                  String?
+  dateJoined               DateTime     @default(now()) @map("date_joined")
+  status                   MemberStatus @default(active)
+  beneficiaryName          String?      @map("beneficiary_name")
+  beneficiaryRelationship  String?      @map("beneficiary_relationship")
+  createdAt                DateTime     @default(now()) @map("created_at")
+  updatedAt                DateTime     @updatedAt @map("updated_at")
+  createdById              String?      @map("created_by")
+  createdBy                User?        @relation("MemberCreatedBy", fields: [createdById], references: [id])
+
+  shareCapitalAccount ShareCapitalAccount?
+  loanAccounts        LoanAccount[]
+
+  @@map("members")
+}
+
+model ShareCapitalAccount {
+  id        String   @id @default(uuid())
+  memberId  String   @unique @map("member_id")
+  member    Member   @relation(fields: [memberId], references: [id])
+  balance   Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  transactions ShareCapitalTransaction[]
+
+  @@map("share_capital_accounts")
+}
+
+model ShareCapitalTransaction {
+  id                    String                 @id @default(uuid())
+  shareCapitalAccountId String                 @map("share_capital_account_id")
+  account               ShareCapitalAccount    @relation(fields: [shareCapitalAccountId], references: [id])
+  type                  ShareCapitalTxnType
+  amount                Decimal                @db.Decimal(18, 2)
+  status                ShareCapitalTxnStatus  @default(pending)
+  createdById           String                 @map("created_by")
+  approvedById          String?                @map("approved_by")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  approvedAt            DateTime?              @map("approved_at")
+
+  ledgerEntries LedgerEntry[]
+
+  @@map("share_capital_transactions")
+}
+
+model LoanAccount {
+  id             String     @id @default(uuid())
+  memberId       String     @map("member_id")
+  member         Member     @relation(fields: [memberId], references: [id])
+  loanProduct    String     @map("loan_product")
+  principalAmount Decimal   @db.Decimal(18, 2) @map("principal_amount")
+  interestRate   Decimal    @db.Decimal(7, 4) @map("interest_rate")
+  termMonths     Int        @map("term_months")
+  status         LoanStatus @default(applied)
+  reviewNotes    String?    @map("review_notes")
+  releaseDate    DateTime?  @map("release_date")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  transactions LoanTransaction[]
+
+  @@map("loan_accounts")
+}
+
+model LoanTransaction {
+  id            String      @id @default(uuid())
+  loanAccountId String      @map("loan_account_id")
+  loanAccount   LoanAccount @relation(fields: [loanAccountId], references: [id])
+  type          LoanTxnType
+  amount        Decimal     @db.Decimal(18, 2)
+  balanceAfter  Decimal     @db.Decimal(18, 2) @map("balance_after")
+  createdById   String      @map("created_by")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  ledgerEntries LedgerEntry[]
+  cashTransactions CashTransaction[]
+
+  @@map("loan_transactions")
+}
+
+model CashTransaction {
+  id                    String      @id @default(uuid())
+  type                  CashTxnType
+  amount                Decimal     @db.Decimal(18, 2)
+  referenceType         String?     @map("reference_type")
+  loanTransactionId     String?     @map("loan_transaction_id")
+  loanTransaction       LoanTransaction? @relation(fields: [loanTransactionId], references: [id])
+  shareCapitalTransactionId String? @map("share_capital_transaction_id")
+  officialReceiptNumber String      @map("official_receipt_number")
+  createdById           String      @map("created_by")
+  createdAt             DateTime    @default(now()) @map("created_at")
+
+  ledgerEntries LedgerEntry[]
+
+  @@map("cash_transactions")
+}
+
+model LedgerEntry {
+  id         String           @id @default(uuid())
+  entryDate  DateTime         @default(now()) @map("entry_date")
+  accountCode String          @map("account_code")
+  debit      Decimal          @default(0) @db.Decimal(18, 2)
+  credit     Decimal          @default(0) @db.Decimal(18, 2)
+  sourceType LedgerSourceType @map("source_type")
+
+  shareCapitalTransactionId String?                  @map("share_capital_transaction_id")
+  shareCapitalTransaction   ShareCapitalTransaction? @relation(fields: [shareCapitalTransactionId], references: [id])
+  loanTransactionId         String?                  @map("loan_transaction_id")
+  loanTransaction           LoanTransaction?         @relation(fields: [loanTransactionId], references: [id])
+  cashTransactionId         String?                  @map("cash_transaction_id")
+  cashTransaction           CashTransaction?         @relation(fields: [cashTransactionId], references: [id])
+
+  batchId    String   @map("batch_id")
+  memo       String?
+  createdById String  @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("ledger_entries")
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  entityType    String      @map("entity_type")
+  entityId      String      @map("entity_id")
+  action        AuditAction
+  previousValue Json?       @map("previous_value")
+  newValue      Json?       @map("new_value")
+  performedById String      @map("performed_by")
+  performedByName String    @map("performed_by_name")
+  performedAt   DateTime    @default(now()) @map("performed_at")
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
