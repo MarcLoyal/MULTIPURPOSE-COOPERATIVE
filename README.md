@@ -96,17 +96,30 @@ same Express `app` with `serverless-http` — local dev still uses
 
 ### 2. Backend → Vercel project #1
 
-1. New Vercel project, **Root Directory: `server`**.
+1. New Vercel project, **Root Directory: `server`**. Leave the Build
+   Command untouched (don't set one) — this is an API-only project with
+   no static output, and giving Vercel *any* custom build command makes
+   it expect a static output directory (`public`) and fail with "No
+   Output Directory named 'public' found". `server/vercel.json` sets no
+   `buildCommand` for exactly this reason; `prisma generate` runs via
+   `postinstall` instead, which Vercel always triggers after `npm
+   install`, no framework detection involved.
 2. Environment variables: `DATABASE_URL`, `DIRECT_URL` (from Supabase
    above), `JWT_SECRET` (any long random string), `CLIENT_ORIGIN` (the
    frontend's Vercel URL, comma-separated if you need to allow more than
    one — e.g. production + a preview URL).
-3. Deploy. The build (`npm run vercel-build`, see `server/package.json`)
-   runs `prisma generate && prisma migrate deploy` automatically, so
-   migrations apply on every deploy — no separate migration step needed.
-4. Note the deployed URL (e.g. `https://coop-mvp-server.vercel.app`) —
+3. Before deploying — and again any time you add a new migration —
+   apply migrations from your own machine, pointed at Supabase (this is
+   a deliberate manual step, not part of the Vercel build, so a deploy
+   is never blocked on reaching the DB mid-build):
+   ```bash
+   cd server
+   DATABASE_URL="<supabase pooler url>" DIRECT_URL="<supabase direct url>" npx prisma migrate deploy
+   ```
+4. Deploy.
+5. Note the deployed URL (e.g. `https://coop-mvp-server.vercel.app`) —
    the frontend needs it next.
-5. Seed demo users once, from your machine, pointed at Supabase:
+6. Seed demo users once, from your machine, pointed at Supabase:
    ```bash
    cd server
    DATABASE_URL="<supabase pooler url>" DIRECT_URL="<supabase direct url>" npm run seed
@@ -116,7 +129,7 @@ same Express `app` with `serverless-http` — local dev still uses
 
 1. New Vercel project, **Root Directory: `client`** (Vercel auto-detects
    the Vite framework preset).
-2. Environment variable: `VITE_API_URL` = the backend URL from step 2.4
+2. Environment variable: `VITE_API_URL` = the backend URL from step 2.5
    above (no trailing slash).
 3. Deploy.
 4. Go back to the backend project and set `CLIENT_ORIGIN` to this
