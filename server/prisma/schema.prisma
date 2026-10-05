@@ -39,6 +39,43 @@ enum MemberStatus {
   terminated
 }
 
+// Needed before deposits or share classes can be built correctly: common
+// shares/regular-member-only deposit rules vs. preferred shares/associate
+// eligibility both key off this (report gap-analysis item 3, Q9).
+enum MembershipClass {
+  regular
+  associate
+}
+
+enum DepositType {
+  savings
+  time
+}
+
+enum DepositComputationBasis {
+  daily_balance
+  average_daily_balance
+  lowest_monthly_balance
+  month_end_balance
+}
+
+enum DepositAccountStatus {
+  active
+  closed
+}
+
+enum DepositTxnType {
+  deposit
+  withdrawal
+  interest_credit
+  pretermination_penalty
+}
+
+enum FiscalYearStatus {
+  open
+  closed
+}
+
 enum ShareCapitalTxnType {
   subscription
   additional_purchase
@@ -158,6 +195,10 @@ model Member {
   address                  String?
   dateJoined               DateTime     @default(now()) @map("date_joined")
   status                   MemberStatus @default(active)
+  // Added for Phase 0 (dormant — no deposit or share-class module reads
+  // this yet). Defaults every existing/new member to regular so nothing
+  // live changes behavior.
+  membershipClass          MembershipClass @default(regular) @map("membership_class")
   beneficiaryName          String?      @map("beneficiary_name")
   beneficiaryRelationship  String?      @map("beneficiary_relationship")
   createdAt                DateTime     @default(now()) @map("created_at")
@@ -167,6 +208,7 @@ model Member {
 
   shareCapitalAccount ShareCapitalAccount?
   loanAccounts        LoanAccount[]
+  depositAccounts     DepositAccount[]
 
   @@map("members")
 }
@@ -332,6 +374,111 @@ model LedgerEntry {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("ledger_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 0 scaffolding — deposits, statutory funds, fiscal years.
+//
+// Schema only. Nothing in server/src imports or routes to these models;
+// no UI reads or writes them. They exist so the data shape is in place
+// ahead of time, per report gap-analysis items 3 and 4, but every one of
+// these features needs cooperative-specific answers (does it even offer
+// deposits? what are the bylaws' fund percentages? etc. — report
+// Q7-Q15, Q36-Q45) before it can be switched on. Do not wire routes or
+// UI to these without that.
+// ---------------------------------------------------------------------------
+
+// Savings and time deposits are liabilities, legally and in the mandatory
+// chart of accounts (21110/21120/21130) — a separate product from share
+// capital (equity), not a view onto ShareCapitalAccount. Report
+// gap-analysis item 3.
+model DepositProduct {
+  id                       String                   @id @default(uuid())
+  name                     String                   @unique
+  type                     DepositType
+  interestRate             Decimal                  @db.Decimal(7, 4) @map("interest_rate")
+  computationBasis         DepositComputationBasis  @default(month_end_balance) @map("computation_basis")
+  creditingFrequencyMonths Int                      @default(1) @map("crediting_frequency_months")
+  minimumBalance           Decimal                  @default(0) @db.Decimal(18, 2) @map("minimum_balance")
+  // Time deposits only; null for savings.
+  termMonths               Int?                     @map("term_months")
+  preTerminationPenaltyRate Decimal?                @db.Decimal(7, 4) @map("pre_termination_penalty_rate")
+  isActive                 Boolean                  @default(true) @map("is_active")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt @map("updated_at")
+
+  depositAccounts DepositAccount[]
+
+  @@map("deposit_products")
+}
+
+model DepositAccount {
+  id               String                @id @default(uuid())
+  memberId         String                @map("member_id")
+  member           Member                @relation(fields: [memberId], references: [id])
+  depositProductId String                @map("deposit_product_id")
+  depositProduct   DepositProduct        @relation(fields: [depositProductId], references: [id])
+  balance          Decimal               @default(0) @db.Decimal(18, 2)
+  status           DepositAccountStatus  @default(active)
+  openedAt         DateTime              @default(now()) @map("opened_at")
+  closedAt         DateTime?             @map("closed_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  transactions DepositTransaction[]
+
+  @@map("deposit_accounts")
+}
+
+model DepositTransaction {
+  id               String         @id @default(uuid())
+  depositAccountId String         @map("deposit_account_id")
+  depositAccount   DepositAccount @relation(fields: [depositAccountId], references: [id])
+  type             DepositTxnType
+  amount           Decimal        @db.Decimal(18, 2)
+  balanceAfter     Decimal        @db.Decimal(18, 2) @map("balance_after")
+  createdById      String         @map("created_by")
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  @@map("deposit_transactions")
+}
+
+// Net surplus must fund four statutory funds within RA 9520 Art. 86 bounds
+// before anything reaches members as interest on share capital or
+// patronage refund (report gap-analysis item 4). The actual percentages
+// are bylaws-set, never hard-coded; the Art. 86 bounds themselves are
+// enforced as DB CHECK constraints (see migration) rather than as
+// validation this app can silently skip.
+model FiscalYear {
+  id          String           @id @default(uuid())
+  yearEndDate DateTime         @map("year_end_date")
+  status      FiscalYearStatus @default(open)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  statutoryFundAllocation StatutoryFundAllocation?
+
+  @@map("fiscal_years")
+}
+
+model StatutoryFundAllocation {
+  id                       String     @id @default(uuid())
+  fiscalYearId             String     @unique @map("fiscal_year_id")
+  fiscalYear               FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  // Art. 86 bound: >= 10% (>= 50% in the cooperative's first five years —
+  // that conditional floor isn't expressible as a static CHECK constraint
+  // and is intentionally left for Phase 5's allocation engine).
+  reserveFundPercent       Decimal    @db.Decimal(5, 2) @map("reserve_fund_percent")
+  // Art. 86 bound: <= 10% total, split 50/50 internal/union-federation.
+  cetfPercent              Decimal    @db.Decimal(5, 2) @map("cetf_percent")
+  // Art. 86 bound: >= 3%, no statutory ceiling.
+  communityDevFundPercent  Decimal    @db.Decimal(5, 2) @map("community_dev_fund_percent")
+  // Art. 86 bound: <= 7%.
+  optionalFundPercent      Decimal    @db.Decimal(5, 2) @map("optional_fund_percent")
+  createdAt                DateTime   @default(now()) @map("created_at")
+  updatedAt                DateTime   @updatedAt @map("updated_at")
+
+  @@map("statutory_fund_allocations")
 }
 
 model AuditLog {
