@@ -1,9 +1,19 @@
 /**
- * Minimal proposed chart of accounts for the MVP. No existing chart of
- * accounts was supplied for this cooperative (see open question in README
- * / spec section 8.2) — this is a reasonable minimal set for a
- * multipurpose cooperative and should be reconciled with the
- * cooperative's actual books before this leaves prototype stage.
+ * ============================================================================
+ * TODO(chart-of-accounts): PLACEHOLDER — NOT the cooperative's real chart
+ * of accounts. No existing chart of accounts was supplied (see README,
+ * "Design decisions & open questions", item 2 / spec section 8.2). These
+ * account codes/labels are a reasonable minimal set invented for this
+ * prototype only.
+ *
+ * MUST be reconciled with the cooperative's actual books — real account
+ * codes, numbering scheme, and any accounts missing here (e.g. equity,
+ * retained earnings, specific income/expense lines the cooperative
+ * already uses) — before this goes anywhere near a real deployment.
+ * Every LedgerEntry posted by the app uses these codes directly, so a
+ * wrong chart here means wrong GL/Trial Balance output once real money
+ * is involved.
+ * ============================================================================
  */
 export const ACCOUNTS = {
   CASH_ON_HAND: "1000",
