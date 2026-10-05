@@ -88,6 +88,19 @@ enum LedgerSourceType {
   manual
 }
 
+enum AccountElement {
+  asset
+  liability
+  equity
+  revenue
+  expense
+}
+
+enum NormalBalance {
+  debit
+  credit
+}
+
 enum AuditAction {
   create
   update
@@ -219,10 +232,39 @@ model CashTransaction {
   @@map("cash_transactions")
 }
 
+// CDA MC 2022-24 "Revised Standard Chart of Accounts for Cooperatives" —
+// see docs/research (Philippine_cooperative_system_rules.md) for sourcing.
+// Seeded by migration 20261005_chart_of_accounts_mc2022_24, not by seed.ts,
+// so the chart is guaranteed present in every environment (dev, staging,
+// Supabase) without depending on someone running `npm run seed`.
+model Account {
+  code         String         @id
+  label        String
+  element      AccountElement
+  normalBalance NormalBalance @map("normal_balance")
+  isContra     Boolean        @default(false) @map("is_contra")
+  isActive     Boolean        @default(true) @map("is_active")
+  // TODO(needs-review): true for codes the research report flagged as
+  // needing a human to read the primary MC 2022-24 PDF before they're
+  // trusted (e.g. 30600's dual Net Surplus/Net Loss use, 18100/18200's
+  // heading placement) and for the two codes this app invented because
+  // the report's curated table has no generic other-income/other-expense
+  // line item at all. See reviewNote for the specific open question.
+  needsReview  Boolean        @default(false) @map("needs_review")
+  reviewNote   String?        @map("review_note")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  ledgerEntries LedgerEntry[]
+
+  @@map("accounts")
+}
+
 model LedgerEntry {
   id         String           @id @default(uuid())
   entryDate  DateTime         @default(now()) @map("entry_date")
   accountCode String          @map("account_code")
+  account    Account          @relation(fields: [accountCode], references: [code])
   debit      Decimal          @default(0) @db.Decimal(18, 2)
   credit     Decimal          @default(0) @db.Decimal(18, 2)
   sourceType LedgerSourceType @map("source_type")
