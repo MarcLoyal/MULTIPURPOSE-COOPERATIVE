@@ -73,6 +73,27 @@ enum LoanTxnType {
   restructure
 }
 
+enum RatePeriod {
+  monthly
+  annual
+}
+
+// CDA MC 2012-05 Section 4 requires interest charged only on the
+// outstanding balance at the start of each period (diminishing balance),
+// not flat on the original principal. "flat" is kept only because the
+// report found flat/advance-deducted products still exist in practice —
+// selecting it for a real product needs a written auditor/CDA sign-off
+// per the report (Q22), which this schema can't enforce by itself.
+enum LoanComputationMethod {
+  diminishing_balance
+  flat
+}
+
+enum AmortizationStyle {
+  equal_payment
+  equal_principal
+}
+
 enum CashTxnType {
   collection
   disbursement
@@ -180,13 +201,42 @@ model ShareCapitalTransaction {
   @@map("share_capital_transactions")
 }
 
+// Board-approved loan products (CDA MC 2012-05 / report gap-analysis item
+// 2): rate, rate period, computation method and amortization style are
+// per-product data, not hard-coded constants, with diminishing balance as
+// the default method. A LoanAccount snapshots a product's terms at
+// application time (see LoanAccount.computationMethod) so a later edit to
+// the product doesn't retroactively change an existing loan's contract.
+model LoanProduct {
+  id                String                 @id @default(uuid())
+  name              String                 @unique
+  description       String?
+  interestRate      Decimal                @db.Decimal(7, 4) @map("interest_rate")
+  ratePeriod        RatePeriod             @default(monthly) @map("rate_period")
+  computationMethod LoanComputationMethod  @default(diminishing_balance) @map("computation_method")
+  amortizationStyle AmortizationStyle      @default(equal_payment) @map("amortization_style")
+  isActive          Boolean                @default(true) @map("is_active")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+
+  loanAccounts LoanAccount[]
+
+  @@map("loan_products")
+}
+
 model LoanAccount {
   id             String     @id @default(uuid())
   memberId       String     @map("member_id")
   member         Member     @relation(fields: [memberId], references: [id])
   loanProduct    String     @map("loan_product")
+  loanProductId  String?    @map("loan_product_id")
+  product        LoanProduct? @relation(fields: [loanProductId], references: [id])
   principalAmount Decimal   @db.Decimal(18, 2) @map("principal_amount")
   interestRate   Decimal    @db.Decimal(7, 4) @map("interest_rate")
+  // Snapshotted from the product (or defaulted) at application time —
+  // diminishing balance by default per CDA MC 2012-05 Section 4, not a
+  // hard-coded formula. See report gap-analysis item 2.
+  computationMethod LoanComputationMethod @default(diminishing_balance) @map("computation_method")
   termMonths     Int        @map("term_months")
   status         LoanStatus @default(applied)
   reviewNotes    String?    @map("review_notes")
