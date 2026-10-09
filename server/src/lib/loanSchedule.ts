@@ -1,12 +1,21 @@
 /**
- * Flat/simple-interest, equal-installment amortization (spec 4.3):
- *   total interest = principal * interestRate * termMonths
- * interestRate is treated as a flat MONTHLY rate expressed as a decimal
- * fraction (e.g. 0.02 for "2% per month"), which is how many Philippine
- * cooperative loan products quote flat rates. If this cooperative's real
- * loan products quote an annual rate instead, this formula needs to
- * change to principal * annualRate * (termMonths / 12) — flagged as an
- * open question in the README pending confirmation of real loan products.
+ * Two interest computation methods (report gap-analysis item 2):
+ *
+ * - "flat": total interest = principal * interestRate * termMonths, split
+ *   evenly across installments. Kept only for loans that already existed
+ *   before diminishing balance became the default (see the migration that
+ *   added computationMethod) — selecting it for a new product needs a
+ *   written auditor/CDA sign-off per CDA MC 2012-05 (report Q22).
+ * - "diminishing_balance" (the default): CDA MC 2012-05 Section 4 requires
+ *   interest charged only on the outstanding balance at the start of each
+ *   period. Implemented here as a standard equal-payment (amortized)
+ *   schedule — equal-principal is a documented alternative (report Q23)
+ *   not yet implemented.
+ *
+ * interestRate is the periodic rate as a decimal fraction (e.g. 0.02 for
+ * "2% per period"), applied per ratePeriod on the product (monthly by
+ * convention today, same as before this file supported diminishing
+ * balance).
  */
 
 export type Installment = {
@@ -17,11 +26,14 @@ export type Installment = {
   totalDue: number;
 };
 
+export type LoanComputationMethod = "diminishing_balance" | "flat";
+
 export function computeTotalInterest(principal: number, interestRate: number, termMonths: number): number {
   return round2(principal * interestRate * termMonths);
 }
 
-export function computeSchedule(
+/** Flat/simple-interest, equal-installment schedule — see method note above. */
+export function computeFlatSchedule(
   principal: number,
   interestRate: number,
   termMonths: number,
@@ -33,9 +45,7 @@ export function computeSchedule(
 
   const installments: Installment[] = [];
   for (let i = 1; i <= termMonths; i++) {
-    const dueDate = new Date(releaseDate);
-    dueDate.setMonth(dueDate.getMonth() + i);
-
+    const dueDate = addMonths(releaseDate, i);
     const isLast = i === termMonths;
     // Absorb rounding remainder into the final installment.
     const principalDue = isLast
@@ -57,16 +67,99 @@ export function computeSchedule(
 }
 
 /**
- * Fixed proportion of every peso collected that represents interest, under
- * the flat/equal-installment schedule (constant across installments except
- * for the last one's rounding remainder — close enough for MVP repayment
- * splitting).
+ * Diminishing balance, equal-payment amortization — the default. Each
+ * period's interest is the periodic rate times the outstanding balance at
+ * the start of that period (CDA MC 2012-05 Section 4), not a share of a
+ * pre-computed total. The payment amount is held constant (standard
+ * amortization formula); the last installment absorbs any rounding
+ * remainder, same convention as the flat schedule above.
  */
-export function interestProportion(principal: number, interestRate: number, termMonths: number): number {
-  const totalInterest = computeTotalInterest(principal, interestRate, termMonths);
-  const totalDue = principal + totalInterest;
-  if (totalDue === 0) return 0;
-  return totalInterest / totalDue;
+export function computeDiminishingBalanceSchedule(
+  principal: number,
+  periodicRate: number,
+  termMonths: number,
+  releaseDate: Date
+): Installment[] {
+  const payment =
+    periodicRate === 0
+      ? principal / termMonths
+      : (principal * periodicRate) / (1 - Math.pow(1 + periodicRate, -termMonths));
+
+  const installments: Installment[] = [];
+  let outstanding = principal;
+  for (let i = 1; i <= termMonths; i++) {
+    const dueDate = addMonths(releaseDate, i);
+    const isLast = i === termMonths;
+    const interestDue = round2(outstanding * periodicRate);
+    const principalDue = isLast ? round2(outstanding) : round2(payment - outstanding * periodicRate);
+
+    outstanding = round2(outstanding - principalDue);
+    installments.push({
+      installmentNumber: i,
+      dueDate,
+      principalDue,
+      interestDue,
+      totalDue: round2(principalDue + interestDue),
+    });
+  }
+  return installments;
+}
+
+export function computeLoanSchedule(
+  method: LoanComputationMethod,
+  principal: number,
+  interestRate: number,
+  termMonths: number,
+  releaseDate: Date
+): Installment[] {
+  return method === "flat"
+    ? computeFlatSchedule(principal, interestRate, termMonths, releaseDate)
+    : computeDiminishingBalanceSchedule(principal, interestRate, termMonths, releaseDate);
+}
+
+/**
+ * Splits one repayment into interest/principal by walking the schedule in
+ * due-date order, applying each installment's dues interest-first then
+ * principal. Interest-first is a default, not a rule — no CDA rule on
+ * payment application order was found (report Q26); this replaces the old
+ * flat-only global-proportion approximation, which doesn't make sense once
+ * interest varies per installment under diminishing balance.
+ */
+export function splitRepayment(
+  schedule: Installment[],
+  totalRepaidBefore: number,
+  paymentAmount: number
+): { interestPortion: number; principalPortion: number } {
+  let interestPortion = 0;
+  let remainingBefore = totalRepaidBefore;
+  let remainingPayment = paymentAmount;
+
+  for (const inst of schedule) {
+    if (remainingPayment <= 0.0001) break;
+
+    if (remainingBefore >= inst.totalDue - 0.0001) {
+      remainingBefore = round2(remainingBefore - inst.totalDue);
+      continue;
+    }
+
+    const alreadyAppliedToThis = remainingBefore;
+    remainingBefore = 0;
+    const interestAlreadyApplied = Math.min(alreadyAppliedToThis, inst.interestDue);
+    const interestRemainingDue = round2(inst.interestDue - interestAlreadyApplied);
+
+    const interestPay = Math.min(remainingPayment, interestRemainingDue);
+    interestPortion = round2(interestPortion + interestPay);
+    remainingPayment = round2(remainingPayment - interestPay);
+
+    const principalAlreadyApplied = round2(alreadyAppliedToThis - interestAlreadyApplied);
+    const principalRemainingDue = round2(inst.principalDue - principalAlreadyApplied);
+    const principalPay = Math.min(remainingPayment, principalRemainingDue);
+    remainingPayment = round2(remainingPayment - principalPay);
+  }
+
+  // Derive principal as the remainder so interest + principal reconciles
+  // exactly to paymentAmount regardless of rounding drift above.
+  return { interestPortion, principalPortion: round2(paymentAmount - interestPortion) };
 }
 
 export function computeAging(params: {
@@ -94,6 +187,12 @@ export function computeAging(params: {
   }
 
   return { daysPastDue, nextDueDate, totalDue, outstandingBalance };
+}
+
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
 }
 
 function diffInDays(a: Date, b: Date): number {

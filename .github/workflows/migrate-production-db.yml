@@ -1,0 +1,50 @@
+name: Migrate Production Database (Supabase)
+
+# Manual trigger only. Applies pending Prisma migrations to the production
+# Supabase database — never runs on push, pull_request, or merge. Trigger
+# it from the Actions tab's "Run workflow" button when the deployed server
+# is running migrations the database hasn't received yet.
+#
+# Only ever runs `prisma migrate deploy` (apply pending migrations) and
+# `prisma migrate status` (report state). Deliberately never runs
+# `prisma migrate reset` or `prisma db push` — those can drop/diverge
+# production data, so they're not in this workflow's vocabulary at all.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: prisma migrate deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    env:
+      # DATABASE_URL: Transaction pooler (port 6543, ?pgbouncer=true&connection_limit=1).
+      # DIRECT_URL: Session pooler (port 5432) — used by migrate deploy, which
+      # needs the full Postgres protocol that transaction-mode pgbouncer doesn't support.
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Each step below fails (and stops the job) on any non-zero exit —
+      # no explicit error handling needed for "stop and show the error".
+      - name: Apply pending migrations
+        run: npx prisma migrate deploy
+
+      - name: Confirm migration status
+        run: npx prisma migrate status
