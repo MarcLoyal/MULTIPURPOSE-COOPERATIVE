@@ -1,0 +1,41 @@
+name: Seed Production Database (Supabase)
+
+# Manual trigger only. Runs the repo's seed script (server/prisma/seed.ts)
+# against the production Supabase database — never on push or merge.
+#
+# Safe to run any number of times: seed.ts upserts each demo user with
+# `update: {}` (a no-op on an existing row — it never touches an existing
+# password hash or any other field) and creates the sample member only
+# after an explicit existence check. It never deletes anything and never
+# overwrites existing data.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    name: run seed script
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run seed script
+        run: npm run seed
