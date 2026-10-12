@@ -2,6 +2,8 @@ import "express-async-errors";
 import express from "express";
 import cors from "cors";
 import { env } from "./config/env";
+import { prisma } from "./lib/prisma";
+import { withTimeout } from "./lib/withTimeout";
 import { errorHandler } from "./middleware/errorHandler";
 import { authRouter } from "./modules/auth/auth.routes";
 import { membersRouter } from "./modules/members/members.routes";
@@ -28,7 +30,22 @@ app.use(
 );
 app.use(express.json());
 
-app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+// Bounded DB ping: a bad connection string or unreachable pooler host would
+// otherwise hang this (and every DB-touching route) until the platform's
+// own timeout kills it, which looks like "never responds" rather than a
+// diagnosable error. 5s is comfortably inside Vercel's function limit.
+app.get("/api/health", async (_req, res) => {
+  try {
+    await withTimeout(prisma.$queryRaw`SELECT 1`, 5000, "database connectivity check");
+    res.json({ status: "ok", db: "ok" });
+  } catch (err) {
+    res.status(503).json({
+      status: "degraded",
+      db: "unreachable",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
 
 app.use("/api/auth", authRouter);
 app.use("/api/members", membersRouter);
