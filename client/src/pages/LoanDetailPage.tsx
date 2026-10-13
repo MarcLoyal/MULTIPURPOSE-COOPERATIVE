@@ -1,18 +1,19 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import { LoanAccount } from "../lib/types";
+import { LoanAccount, LoanDisclosure } from "../lib/types";
 import { Badge } from "../components/Badge";
 import { ActivityLog } from "../components/ActivityLog";
 import { formatCurrency, formatDate } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
-const TABS = ["Overview", "Repayment Schedule", "Activity Log"] as const;
+const TABS = ["Overview", "Repayment Schedule", "Disclosure Statement", "Activity Log"] as const;
 
 export function LoanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const [loan, setLoan] = useState<LoanAccount | null>(null);
+  const [disclosure, setDisclosure] = useState<LoanDisclosure | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
   const [error, setError] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
@@ -24,6 +25,11 @@ export function LoanDetailPage() {
   }
 
   useEffect(load, [id]);
+
+  useEffect(() => {
+    if (!id || tab !== "Disclosure Statement") return;
+    api.get<LoanDisclosure>(`/loans/${id}/disclosure`).then(setDisclosure);
+  }, [id, tab]);
 
   async function act(action: string, body?: unknown) {
     if (!id) return;
@@ -64,7 +70,8 @@ export function LoanDetailPage() {
           </h1>
           <p className="text-sm text-slate-500">
             Principal {formatCurrency(loan.principalAmount)} · {loan.termMonths} months ·{" "}
-            {(Number(loan.interestRate) * 100).toFixed(2)}%/mo flat
+            {(Number(loan.interestRate) * 100).toFixed(2)}%/{loan.ratePeriod === "annual" ? "yr" : "mo"} —{" "}
+            {loan.computationMethod === "flat" ? "flat" : "diminishing balance"}
           </p>
         </div>
         <Badge value={loan.status} />
@@ -231,6 +238,40 @@ export function LoanDetailPage() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {tab === "Disclosure Statement" && (
+        <div className="bg-white border border-slate-200 rounded-xl p-5">
+          {!disclosure ? (
+            <p className="text-slate-500">Loading…</p>
+          ) : (
+            <div className="space-y-4 text-sm max-w-md">
+              {disclosure.isNominalRateOnly && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3">
+                  This loan uses the flat method. The nominal rate below understates the true cost on the
+                  outstanding balance — diminishing balance is the current default for new loans.
+                </div>
+              )}
+              <dl className="grid grid-cols-2 gap-y-2">
+                <dt className="text-slate-500">Amount financed</dt>
+                <dd className="text-right font-medium">{formatCurrency(disclosure.amountFinanced)}</dd>
+                <dt className="text-slate-500">Finance charge (total interest)</dt>
+                <dd className="text-right font-medium">{formatCurrency(disclosure.totalInterest)}</dd>
+                <dt className="text-slate-500">Total of payments</dt>
+                <dd className="text-right font-medium">{formatCurrency(disclosure.totalOfPayments)}</dd>
+                <dt className="text-slate-500">
+                  {disclosure.isNominalRateOnly ? "Nominal interest rate (per annum)" : "Effective interest rate (per annum)"}
+                </dt>
+                <dd className="text-right font-medium">{disclosure.effectiveInterestRatePercent}%</dd>
+              </dl>
+              <p className="text-xs text-slate-400">{disclosure.feesNote}</p>
+              <p className="text-xs text-slate-400">
+                "Total of payments" is shown for the member's convenience and is not itself one of RA 3765's
+                required disclosure items — amount financed, finance charge, and the effective annual rate are.
+              </p>
+            </div>
           )}
         </div>
       )}

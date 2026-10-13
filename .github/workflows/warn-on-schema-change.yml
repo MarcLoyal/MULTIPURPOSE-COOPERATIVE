@@ -1,0 +1,60 @@
+name: Warn on Database Schema Changes
+
+# Runs on every push to a PR that touches the Prisma schema or adds a
+# migration. Read-only — never touches the database, never runs
+# migrations. Posts (or updates) one comment on the PR so a schema
+# change is impossible to miss during review, since the PR's preview
+# deployments share the production database and won't reflect a new
+# migration until it's actually applied there.
+on:
+  pull_request:
+    paths:
+      - "server/prisma/migrations/**"
+      - "server/prisma/schema.prisma"
+
+permissions:
+  pull-requests: write
+
+jobs:
+  warn:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post or update schema-change warning comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = "<!-- schema-change-warning -->";
+            const body = `${marker}
+            ### ⚠️ This PR changes the database schema
+
+            Preview deployments for this PR share the **production** database. They will keep running against the *current* schema until a migration is actually applied — the preview will not show this change working, and won't catch a bad migration either.
+
+            **Before merging:**
+            1. Read the new/changed file(s) under \`server/prisma/migrations/\` — confirm what the migration actually does, not just what the PR description says.
+            2. If it's purely additive (new nullable column, new table, new index — nothing existing code reads or writes) it's generally safe to run the **"Migrate Production Database (Supabase)"** workflow against production *before* merging: old code keeps working unchanged against the post-migration schema, and the new code in this PR is what starts using the new column/table once merged.
+            3. If it renames or drops a column/table, changes a type, or adds a \`NOT NULL\` column with no default — that's a breaking change for whatever's currently running in production. Don't run it pre-merge. Either make it additive instead (expand/contract: add the new shape, migrate data, drop the old shape in a *later* PR once the new code is live), or test it against a separate non-production database first.
+
+            Ask if you want to discuss whether this one needs a separate test database.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

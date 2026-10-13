@@ -279,6 +279,11 @@ model LoanAccount {
   // diminishing balance by default per CDA MC 2012-05 Section 4, not a
   // hard-coded formula. See report gap-analysis item 2.
   computationMethod LoanComputationMethod @default(diminishing_balance) @map("computation_method")
+  // Snapshotted like computationMethod — needed to compute the RA 3765
+  // annualized rate on the disclosure statement even for loans with no
+  // linked product. Defaults to monthly, matching the convention
+  // already used throughout loanSchedule.ts.
+  ratePeriod     RatePeriod @default(monthly) @map("rate_period")
   termMonths     Int        @map("term_months")
   status         LoanStatus @default(applied)
   reviewNotes    String?    @map("review_notes")
@@ -479,6 +484,28 @@ model StatutoryFundAllocation {
   updatedAt                DateTime   @updatedAt @map("updated_at")
 
   @@map("statutory_fund_allocations")
+}
+
+// Phase 1: the allowance for probable losses is booked on Portfolio at
+// Risk (days past due), but MC 2022-24 doesn't state the percentage
+// schedule — the only source found (MC 2020-18, a COVID relief circular)
+// is explicitly not a confirmed general rule. Every bucket's rate is
+// admin-editable, seeded at 0% (an inert, safe default — posting at 0%
+// is a no-op) until the cooperative's auditor confirms real numbers.
+// The six buckets themselves are seeded by the migration, not created
+// through the app, so the set of buckets is fixed; only each one's rate
+// is a setting.
+model AllowanceRateSetting {
+  id             String   @id @default(uuid())
+  bucketLabel    String   @unique @map("bucket_label")
+  minDaysPastDue Int      @map("min_days_past_due")
+  maxDaysPastDue Int?     @map("max_days_past_due")
+  ratePercent    Decimal  @default(0) @db.Decimal(5, 2) @map("rate_percent")
+  sortOrder      Int      @map("sort_order")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  updatedById    String?  @map("updated_by")
+
+  @@map("allowance_rate_settings")
 }
 
 model AuditLog {

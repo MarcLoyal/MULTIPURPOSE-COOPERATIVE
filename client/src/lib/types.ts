@@ -83,6 +83,8 @@ export type LoanAccount = {
   loanProduct: string;
   principalAmount: string;
   interestRate: string;
+  computationMethod: "diminishing_balance" | "flat";
+  ratePeriod: "monthly" | "annual";
   termMonths: number;
   status: LoanStatus;
   reviewNotes?: string | null;
@@ -141,4 +143,46 @@ export type DashboardSummary = {
   pastDueLoans: number;
   totalShareCapital: number;
   cashPosition: number;
+};
+
+export type AllowanceRateSetting = {
+  id: string;
+  bucketLabel: string;
+  minDaysPastDue: number;
+  maxDaysPastDue: number | null;
+  ratePercent: string;
+  sortOrder: number;
+  updatedAt: string;
+};
+
+export type AllowanceReportRow = {
+  loanId: string;
+  memberName: string;
+  loanProduct: string;
+  outstandingBalance: number;
+  daysPastDue: number;
+  bucket: string;
+  ratePercent: number;
+  allowanceAmount: number;
+};
+
+export type AllowanceReport = {
+  rows: AllowanceReportRow[];
+  totalAllowance: number;
+};
+
+export type LoanDisclosure = {
+  loanId: string;
+  memberName: string;
+  loanProduct: string;
+  computationMethod: "diminishing_balance" | "flat";
+  ratePeriod: "monthly" | "annual";
+  principalAmount: number;
+  termMonths: number;
+  totalInterest: number;
+  amountFinanced: number;
+  totalOfPayments: number;
+  effectiveInterestRatePercent: number;
+  isNominalRateOnly: boolean;
+  feesNote: string;
 };

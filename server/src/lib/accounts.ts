@@ -32,9 +32,13 @@ export const ACCOUNTS = {
   PETTY_CASH_FUND: "11150",
   CASH_ADVANCES: "11360",
   LOANS_RECEIVABLE: "11210",
+  // Contra-asset; see server/src/lib/allowance.ts — the percentage that
+  // determines how much lands here is a per-bucket setting, never fixed.
+  ALLOWANCE_FOR_PROBABLE_LOSSES: "11242",
   MEMBERS_SHARE_CAPITAL: "30130",
   INTEREST_INCOME: "40110",
   PENALTY_INCOME: "40140",
   OTHER_INCOME: "49900",
   OTHER_EXPENSE: "79900",
+  PROBABLE_LOSSES_EXPENSE: "73380",
 } as const;

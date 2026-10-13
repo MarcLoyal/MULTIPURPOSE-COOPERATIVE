@@ -116,6 +116,62 @@ loansRouter.get("/:id", async (req, res) => {
   res.json(enriched);
 });
 
+/**
+ * Disclosure statement (RA 3765 §4 / CDA MC 2012-05 §6). RA 3765 requires
+ * 7 specific items; the 3 that apply to a cash loan with no fee schedule
+ * (items 1-4, covering a purchase price vs. down payment, collapse to a
+ * single "amount financed" figure here) are:
+ *   (5) total amount to be financed  -> amountFinanced
+ *   (6) finance charge, in pesos     -> financeChargeAmount
+ *   (7) finance charge expressed as a simple annual rate on the
+ *       outstanding unpaid balance   -> effectiveInterestRatePercent
+ * These are statute-fixed, not board policy, so nothing here is a
+ * setting — unlike the allowance report. totalOfPayments (amountFinanced
+ * + financeChargeAmount) is NOT one of the 7 statutory items — it's a
+ * plain-language total shown for the member's benefit, labeled as such on
+ * the client. Two honest limitations, stated on the response rather than
+ * silently glossed over:
+ * - No fee schedule exists yet (Phase 0/1 scope), so amountFinanced
+ *   equals principal; a real disclosure must itemize and deduct
+ *   filing/service fees once those exist.
+ * - For a "flat" loan, the rate shown is the nominal rate (periodic rate
+ *   x periods/year), not a true effective rate on the outstanding
+ *   balance — the report's own worked example shows flat's nominal rate
+ *   understates true cost. That gap is flagged explicitly (isNominalRateOnly)
+ *   rather than computed, to avoid presenting an invented number as the
+ *   statute's required figure.
+ */
+loansRouter.get("/:id/disclosure", async (req, res) => {
+  const loan = await prisma.loanAccount.findUnique({ where: { id: req.params.id }, include: { member: true } });
+  if (!loan) throw notFound("Loan not found");
+
+  const principal = Number(loan.principalAmount);
+  const periodicRate = Number(loan.interestRate);
+  const periodsPerYear = loan.ratePeriod === "annual" ? 1 : 12;
+  const releaseDate = loan.releaseDate ?? new Date();
+  const schedule = computeLoanSchedule(loan.computationMethod, principal, periodicRate, loan.termMonths, releaseDate);
+  const totalInterest = round2(schedule.reduce((sum, i) => sum + i.interestDue, 0));
+  const amountFinanced = principal; // no fee schedule yet — see doc comment above
+  const totalOfPayments = round2(amountFinanced + totalInterest);
+  const effectiveInterestRatePercent = round2(periodicRate * periodsPerYear * 100);
+
+  res.json({
+    loanId: loan.id,
+    memberName: loan.member.fullName,
+    loanProduct: loan.loanProduct,
+    computationMethod: loan.computationMethod,
+    ratePeriod: loan.ratePeriod,
+    principalAmount: principal,
+    termMonths: loan.termMonths,
+    totalInterest,
+    amountFinanced,
+    totalOfPayments,
+    effectiveInterestRatePercent,
+    isNominalRateOnly: loan.computationMethod === "flat",
+    feesNote: "No fee schedule is modeled yet — amount financed shown equals principal.",
+  });
+});
+
 // credit_officer creates the application (status: applied) — spec 4.3.
 loansRouter.post("/", requireRole("credit_officer", "admin"), async (req, res) => {
   const data = applySchema.parse(req.body);
@@ -124,17 +180,25 @@ loansRouter.post("/", requireRole("credit_officer", "admin"), async (req, res) =
   if (member.status !== "active") throw badRequest("Only active members can apply for a loan");
 
   let computationMethod: "diminishing_balance" | "flat" | undefined;
+  let ratePeriod: "monthly" | "annual" | undefined;
   if (data.loanProductId) {
     const product = await prisma.loanProduct.findUnique({ where: { id: data.loanProductId } });
     if (!product || !product.isActive) throw badRequest("Loan product not found or inactive");
     computationMethod = product.computationMethod;
+    ratePeriod = product.ratePeriod;
   }
 
   const loan = await prisma.$transaction(async (tx) => {
     const created = await tx.loanAccount.create({
-      // computationMethod omitted when no product was linked — the
-      // LoanAccount column's own default (diminishing balance) applies.
-      data: { ...data, status: "applied", ...(computationMethod ? { computationMethod } : {}) },
+      // computationMethod/ratePeriod omitted when no product was linked —
+      // the LoanAccount columns' own defaults (diminishing balance,
+      // monthly) apply.
+      data: {
+        ...data,
+        status: "applied",
+        ...(computationMethod ? { computationMethod } : {}),
+        ...(ratePeriod ? { ratePeriod } : {}),
+      },
     });
     await writeAuditLog(tx, {
       entityType: "LoanAccount",

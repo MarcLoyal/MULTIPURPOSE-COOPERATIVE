@@ -12,6 +12,7 @@ import { cashRouter } from "./modules/cash/cash.routes";
 import { accountingRouter } from "./modules/accounting/accounting.routes";
 import { auditRouter } from "./modules/audit/audit.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
+import { settingsRouter } from "./modules/settings/settings.routes";
 
 export const app = express();
 
@@ -48,7 +49,7 @@ app.use((req, res, next) => {
 
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") return res.sendStatus(204);
@@ -81,5 +82,6 @@ app.use("/api/cash", cashRouter);
 app.use("/api/accounting", accountingRouter);
 app.use("/api/audit", auditRouter);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/settings", settingsRouter);
 
 app.use(errorHandler);

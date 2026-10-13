@@ -11,6 +11,8 @@ import { LoanDetailPage } from "./pages/LoanDetailPage";
 import { CashPage } from "./pages/CashPage";
 import { LedgerPage } from "./pages/LedgerPage";
 import { TrialBalancePage } from "./pages/TrialBalancePage";
+import { AllowanceReportPage } from "./pages/AllowanceReportPage";
+import { AllowanceSettingsPage } from "./pages/AllowanceSettingsPage";
 
 function ProtectedArea() {
   const { user, loading } = useAuth();
@@ -35,6 +37,8 @@ export default function App() {
             <Route path="/cash" element={<CashPage />} />
             <Route path="/ledger" element={<LedgerPage />} />
             <Route path="/trial-balance" element={<TrialBalancePage />} />
+            <Route path="/allowance-report" element={<AllowanceReportPage />} />
+            <Route path="/settings/allowance-rates" element={<AllowanceSettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
