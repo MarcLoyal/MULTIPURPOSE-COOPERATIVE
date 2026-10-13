@@ -55,7 +55,7 @@ export type LoanStatus =
 export type LoanTransaction = {
   id: string;
   loanAccountId: string;
-  type: "release" | "repayment" | "penalty" | "restructure";
+  type: "release" | "repayment" | "penalty" | "restructure" | "reclassify";
   amount: string;
   balanceAfter: string;
   createdById: string;

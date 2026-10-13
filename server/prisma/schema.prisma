@@ -108,6 +108,12 @@ enum LoanTxnType {
   repayment
   penalty
   restructure
+  // Portfolio-at-Risk whole-balance reclassification (report
+  // gap-analysis item 1 / MC 2022-24): moves the full outstanding
+  // balance between 11210/11220/11230 when status changes, with no
+  // cash movement of its own. Anchors the reclassifying ledger entry
+  // for drill-down, same as every other GL-affecting loan event.
+  reclassify
 }
 
 enum RatePeriod {

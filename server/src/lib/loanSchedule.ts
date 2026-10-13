@@ -162,6 +162,24 @@ export function splitRepayment(
   return { interestPortion, principalPortion: round2(paymentAmount - interestPortion) };
 }
 
+/**
+ * Outstanding principal only — distinct from computeAging's
+ * outstandingBalance (principal+interest still owed). The PAR receivable
+ * accounts (11210/11220/11230) only ever track principal: release debits
+ * principal only, and a repayment credits only its principal portion
+ * (interest posts straight to Interest Income). Reclassifying a loan's
+ * balance between those accounts must move this figure, not the
+ * principal+interest total.
+ */
+export function computeOutstandingPrincipal(
+  principal: number,
+  schedule: Installment[],
+  totalRepaid: number
+): number {
+  const { principalPortion } = splitRepayment(schedule, 0, totalRepaid);
+  return round2(Math.max(0, principal - principalPortion));
+}
+
 export function computeAging(params: {
   schedule: Installment[];
   totalRepaid: number;
