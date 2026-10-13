@@ -1,6 +1,5 @@
 import "express-async-errors";
 import express from "express";
-import cors from "cors";
 import { env } from "./config/env";
 import { prisma } from "./lib/prisma";
 import { withTimeout } from "./lib/withTimeout";
@@ -16,18 +15,45 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 
 export const app = express();
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // No Origin header (e.g. curl, server-to-server) — allow.
-      if (!origin || env.clientOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${origin} is not allowed`));
-      }
-    },
-  })
-);
+// Same-origin requests (the page and the API on the same domain) are
+// always allowed, with no configuration needed — this covers production
+// and every Vercel preview URL automatically, since client and server
+// deploy together as one project (root vercel.json) and the Origin a
+// browser sends always matches the Host it's actually talking to.
+// CLIENT_ORIGIN remains only for local dev: Vite's dev-server proxy
+// forwards Origin unchanged while rewriting Host (changeOrigin only
+// touches Host, not Origin), so the two don't match there and the
+// explicit allowlist is still needed.
+//
+// A rejected origin gets an explicit 403 here, not an Error thrown into
+// Express's error pipeline — errorHandler.ts has no specific case for a
+// generic Error and falls back to 500, which isn't the right status for
+// "this origin isn't allowed."
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin) return next(); // curl, server-to-server, same-origin navigation — none send Origin
+
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return res.status(403).json({ error: `Origin ${origin} is not allowed` });
+  }
+
+  const isSameOrigin = originHost === req.headers.host;
+  const isExplicitlyAllowed = env.clientOrigins.includes(origin);
+  if (!isSameOrigin && !isExplicitlyAllowed) {
+    return res.status(403).json({ error: `Origin ${origin} is not allowed` });
+  }
+
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 app.use(express.json());
 
 // Bounded DB ping: a bad connection string or unreachable pooler host would
