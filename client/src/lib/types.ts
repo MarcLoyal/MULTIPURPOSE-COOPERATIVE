@@ -180,10 +180,9 @@ export type LoanDisclosure = {
   principalAmount: number;
   termMonths: number;
   totalInterest: number;
-  totalAmountFinanced: number;
-  netProceeds: number;
-  financeChargeRatioPercent: number;
-  annualRateNominalPercent: number;
+  amountFinanced: number;
+  totalOfPayments: number;
+  effectiveInterestRatePercent: number;
   isNominalRateOnly: boolean;
   feesNote: string;
 };
