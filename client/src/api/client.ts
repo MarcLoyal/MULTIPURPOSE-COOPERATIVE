@@ -1,9 +1,16 @@
+// Set by vite.config.ts at build time: on a Vercel preview deployment,
+// this points at the same branch's server preview (see
+// VITE_PREVIEW_SERVER_URL_TEMPLATE there). Empty string outside preview
+// builds.
+declare const __PREVIEW_API_URL__: string;
+
 // In local dev this is empty and requests go through Vite's /api proxy
 // (see vite.config.ts) to the backend on :4000. In production the
 // frontend and backend are deployed as separate Vercel projects, so
 // VITE_API_URL must point at the backend's deployed URL, e.g.
-// "https://coop-mvp-server.vercel.app".
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+// "https://coop-mvp-server.vercel.app". On a PR preview, neither is set
+// and __PREVIEW_API_URL__ takes over instead.
+const API_BASE_URL = import.meta.env.VITE_API_URL || __PREVIEW_API_URL__ || "";
 
 const TOKEN_KEY = "coop_mvp_token";
 

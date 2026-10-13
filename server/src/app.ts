@@ -20,11 +20,10 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // No Origin header (e.g. curl, server-to-server) — allow.
-      if (!origin || env.clientOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${origin} is not allowed`));
-      }
+      if (!origin) return callback(null, true);
+      if (env.clientOrigins.includes(origin)) return callback(null, true);
+      if (env.previewClientOriginRegex?.test(origin)) return callback(null, true);
+      callback(new Error(`Origin ${origin} is not allowed`));
     },
   })
 );
