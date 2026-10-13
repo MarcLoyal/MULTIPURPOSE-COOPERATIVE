@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
-import { requireAuth } from "../../middleware/auth";
-import { getTrialBalance } from "../../lib/ledger";
+import { requireAuth, requireRole } from "../../middleware/auth";
+import { getTrialBalance, postLedgerBatch } from "../../lib/ledger";
+import { writeAuditLog } from "../../lib/audit";
+import { ACCOUNTS } from "../../lib/accounts";
+import { computeAging, computeLoanSchedule } from "../../lib/loanSchedule";
+import { classifyAllowanceBucket, round2 } from "../../lib/allowance";
 
 export const accountingRouter = Router();
 accountingRouter.use(requireAuth);
@@ -55,3 +59,98 @@ accountingRouter.get("/trial-balance", async (_req, res) => {
 
   res.json({ rows: withLabels, totals, balanced: Math.abs(totals.totalDebit - totals.totalCredit) < 0.01 });
 });
+
+/**
+ * Allowance for probable losses, computed fresh on every request from the
+ * current AllowanceRateSetting rows — never cached, so changing a rate in
+ * Settings is reflected immediately. See lib/allowance.ts for the bucket
+ * logic and why every rate defaults to 0%.
+ */
+async function computeAllowanceReport() {
+  const [loans, rateSettings] = await Promise.all([
+    prisma.loanAccount.findMany({
+      where: { status: { in: ["active", "past_due"] } },
+      include: { member: true, transactions: true },
+    }),
+    prisma.allowanceRateSetting.findMany(),
+  ]);
+  const rateByBucket = new Map(rateSettings.map((r) => [r.bucketLabel, Number(r.ratePercent)]));
+
+  const rows = loans
+    .filter((loan) => loan.releaseDate)
+    .map((loan) => {
+      const schedule = computeLoanSchedule(
+        loan.computationMethod,
+        Number(loan.principalAmount),
+        Number(loan.interestRate),
+        loan.termMonths,
+        loan.releaseDate!
+      );
+      const totalRepaid = loan.transactions
+        .filter((t) => t.type === "repayment")
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      const aging = computeAging({ schedule, totalRepaid });
+      const bucket = classifyAllowanceBucket(aging.daysPastDue);
+      const ratePercent = rateByBucket.get(bucket) ?? 0;
+      const allowanceAmount = round2((aging.outstandingBalance * ratePercent) / 100);
+      return {
+        loanId: loan.id,
+        memberName: loan.member.fullName,
+        loanProduct: loan.loanProduct,
+        outstandingBalance: aging.outstandingBalance,
+        daysPastDue: aging.daysPastDue,
+        bucket,
+        ratePercent,
+        allowanceAmount,
+      };
+    })
+    .filter((row) => row.outstandingBalance > 0);
+
+  const totalAllowance = round2(rows.reduce((sum, row) => sum + row.allowanceAmount, 0));
+  return { rows, totalAllowance };
+}
+
+accountingRouter.get("/allowance-report", async (_req, res) => {
+  res.json(await computeAllowanceReport());
+});
+
+// Never automatic — a human with manager/accountant/admin access must
+// explicitly trigger this, and it no-ops cleanly (not an error) while
+// every rate is still at its 0% default.
+accountingRouter.post(
+  "/allowance-report/post",
+  requireRole("manager", "accountant", "admin"),
+  async (req, res) => {
+    const { rows, totalAllowance } = await computeAllowanceReport();
+
+    if (totalAllowance <= 0) {
+      return res.json({
+        posted: false,
+        message: "Total allowance is zero at the current settings — nothing to post.",
+        totalAllowance,
+      });
+    }
+
+    const batchId = await prisma.$transaction(async (tx) => {
+      const id = await postLedgerBatch(tx, {
+        sourceType: "manual",
+        createdById: req.user!.id,
+        memo: `Allowance for probable losses — ${rows.length} loan(s)`,
+        lines: [
+          { accountCode: ACCOUNTS.PROBABLE_LOSSES_EXPENSE, debit: totalAllowance },
+          { accountCode: ACCOUNTS.ALLOWANCE_FOR_PROBABLE_LOSSES, credit: totalAllowance },
+        ],
+      });
+      await writeAuditLog(tx, {
+        entityType: "LedgerEntry",
+        entityId: id,
+        action: "create",
+        newValue: { memo: "Allowance for probable losses", totalAllowance, loanCount: rows.length },
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+      return id;
+    });
+
+    res.json({ posted: true, batchId, totalAllowance });
+  }
+);

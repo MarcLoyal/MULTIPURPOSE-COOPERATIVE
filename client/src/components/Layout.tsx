@@ -10,10 +10,16 @@ const NAV_ITEMS = [
   { to: "/cash", label: "Cash" },
   { to: "/ledger", label: "General Ledger" },
   { to: "/trial-balance", label: "Trial Balance" },
+  { to: "/allowance-report", label: "Allowance for Losses" },
 ];
+
+const SETTINGS_ROLES = ["manager", "accountant", "admin"];
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const navItems = user && SETTINGS_ROLES.includes(user.role)
+    ? [...NAV_ITEMS, { to: "/settings/allowance-rates", label: "Settings" }]
+    : NAV_ITEMS;
 
   return (
     <div className="min-h-screen flex">
@@ -23,7 +29,7 @@ export function Layout() {
           <p className="text-xs text-slate-400">Automation MVP</p>
         </div>
         <nav className="flex-1 py-4 space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
