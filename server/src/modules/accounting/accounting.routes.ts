@@ -69,7 +69,11 @@ accountingRouter.get("/trial-balance", async (_req, res) => {
 async function computeAllowanceReport() {
   const [loans, rateSettings] = await Promise.all([
     prisma.loanAccount.findMany({
-      where: { status: { in: ["active", "past_due"] } },
+      // Includes "restructured" so the allowance report and the PAR
+      // reclassification (loanReceivable.ts) agree on which loans carry
+      // an outstanding receivable — unreachable in practice today (no
+      // endpoint ever sets this status), but correct for when one exists.
+      where: { status: { in: ["active", "past_due", "restructured"] } },
       include: { member: true, transactions: true },
     }),
     prisma.allowanceRateSetting.findMany(),

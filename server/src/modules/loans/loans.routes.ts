@@ -6,7 +6,14 @@ import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
-import { computeAging, computeLoanSchedule, splitRepayment, round2 } from "../../lib/loanSchedule";
+import {
+  computeAging,
+  computeLoanSchedule,
+  computeOutstandingPrincipal,
+  splitRepayment,
+  round2,
+} from "../../lib/loanSchedule";
+import { receivableAccountForStatus, reclassifyLoanReceivable } from "../../lib/loanReceivable";
 
 export const loansRouter = Router();
 loansRouter.use(requireAuth);
@@ -60,8 +67,13 @@ async function withAging(loan: {
   return { ...loan, aging, schedule };
 }
 
-/** Keeps LoanAccount.status in sync with computed aging (active <-> past_due). */
-async function syncLoanStatus(loanId: string) {
+/**
+ * Keeps LoanAccount.status in sync with computed aging (active <->
+ * past_due), and — when the status actually changes — reclassifies the
+ * whole outstanding balance between PAR buckets (11210/11220) in the same
+ * transaction, so the status and the GL never drift apart.
+ */
+async function syncLoanStatus(loanId: string, performedBy: { id: string; name: string }) {
   const loan = await prisma.loanAccount.findUnique({
     where: { id: loanId },
     include: { transactions: true },
@@ -80,16 +92,41 @@ async function syncLoanStatus(loanId: string) {
     .filter((t) => t.type === "repayment")
     .reduce((sum, t) => sum + Number(t.amount), 0);
   const aging = computeAging({ schedule, totalRepaid });
+  // The PAR receivable accounts (11210/11220/11230) only ever track
+  // principal — see computeOutstandingPrincipal's doc comment — so the
+  // reclassifying entry must move this, not aging.outstandingBalance
+  // (which includes unpaid interest and would misstate the GL split).
+  const outstandingPrincipal = computeOutstandingPrincipal(Number(loan.principalAmount), schedule, totalRepaid);
 
   let nextStatus: "active" | "past_due" | "closed" = loan.status as any;
   if (aging.outstandingBalance <= 0.01) nextStatus = "closed";
   else if (aging.daysPastDue > 0) nextStatus = "past_due";
   else nextStatus = "active";
 
-  if (nextStatus !== loan.status) {
-    return prisma.loanAccount.update({ where: { id: loanId }, data: { status: nextStatus } });
-  }
-  return loan;
+  if (nextStatus === loan.status) return loan;
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.loanAccount.update({ where: { id: loanId }, data: { status: nextStatus } });
+    await writeAuditLog(tx, {
+      entityType: "LoanAccount",
+      entityId: loanId,
+      action: "update",
+      previousValue: { status: loan.status },
+      newValue: { status: nextStatus },
+      performedBy,
+    });
+    // No-ops on its own for the active/past_due -> closed transition —
+    // a closed loan's receivable already nets to zero through the
+    // repayment's own posting, not a separate reclassifying entry.
+    await reclassifyLoanReceivable(tx, {
+      loanAccountId: loanId,
+      fromStatus: loan.status,
+      toStatus: nextStatus,
+      outstandingBalance: outstandingPrincipal,
+      performedBy,
+    });
+    return updated;
+  });
 }
 
 loansRouter.get("/", async (req, res) => {
@@ -328,7 +365,7 @@ loansRouter.post("/:id/release", requireRole("cashier", "admin"), async (req, re
       createdById: req.user!.id,
       memo: `Loan release — ${loan.loanProduct}`,
       lines: [
-        { accountCode: ACCOUNTS.LOANS_RECEIVABLE, debit: principal },
+        { accountCode: ACCOUNTS.LOANS_RECEIVABLE_CURRENT, debit: principal },
         { accountCode: ACCOUNTS.CASH_ON_HAND, credit: principal },
       ],
     });
@@ -402,7 +439,15 @@ loansRouter.post("/:id/repayments", requireRole("cashier", "admin"), async (req,
 
     const ledgerLines = [{ accountCode: ACCOUNTS.CASH_ON_HAND, debit: amount }];
     if (principalPortion > 0) {
-      ledgerLines.push({ accountCode: ACCOUNTS.LOANS_RECEIVABLE, credit: principalPortion } as any);
+      // Credits whichever bucket this loan's receivable is currently
+      // sitting in (11210/11220/11230), not always "Current" — a
+      // past-due loan's balance lives in 11220 until something
+      // reclassifies it back, and a repayment must reduce the account
+      // the balance actually sits in or the two drift apart.
+      ledgerLines.push({
+        accountCode: receivableAccountForStatus(existing.status) ?? ACCOUNTS.LOANS_RECEIVABLE_CURRENT,
+        credit: principalPortion,
+      } as any);
     }
     if (interestPortion > 0) {
       ledgerLines.push({ accountCode: ACCOUNTS.INTEREST_INCOME, credit: interestPortion } as any);
@@ -442,7 +487,7 @@ loansRouter.post("/:id/repayments", requireRole("cashier", "admin"), async (req,
     return { loan, loanTxn };
   });
 
-  await syncLoanStatus(existing.id);
+  await syncLoanStatus(existing.id, { id: req.user!.id, name: req.user!.name });
   res.status(201).json(result);
 });
 

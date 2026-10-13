@@ -31,7 +31,13 @@ export const ACCOUNTS = {
   CASH_IN_BANK: "11130",
   PETTY_CASH_FUND: "11150",
   CASH_ADVANCES: "11360",
-  LOANS_RECEIVABLE: "11210",
+  // Renamed from LOANS_RECEIVABLE (same code, 11210) when
+  // LOANS_RECEIVABLE_PAST_DUE/RESTRUCTURED were added — "current" is now
+  // one of three buckets a loan's receivable can sit in, not the only one.
+  // See lib/loanReceivable.ts for which bucket a given LoanStatus maps to.
+  LOANS_RECEIVABLE_CURRENT: "11210",
+  LOANS_RECEIVABLE_PAST_DUE: "11220",
+  LOANS_RECEIVABLE_RESTRUCTURED: "11230",
   // Contra-asset; see server/src/lib/allowance.ts — the percentage that
   // determines how much lands here is a per-bucket setting, never fixed.
   ALLOWANCE_FOR_PROBABLE_LOSSES: "11242",
