@@ -6,7 +6,7 @@ import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
-import { computeAging, computeSchedule, interestProportion, round2 } from "../../lib/loanSchedule";
+import { computeAging, computeLoanSchedule, splitRepayment, round2 } from "../../lib/loanSchedule";
 
 export const loansRouter = Router();
 loansRouter.use(requireAuth);
@@ -14,6 +14,12 @@ loansRouter.use(requireAuth);
 const applySchema = z.object({
   memberId: z.string().uuid(),
   loanProduct: z.string().min(1),
+  // Optional: links the loan to a board-approved LoanProduct, whose
+  // computationMethod is snapshotted onto the loan. The client has no
+  // product picker yet (out of scope for Phase 0), so this is normally
+  // omitted and the loan gets the LoanAccount column's own default
+  // (diminishing balance) instead — see report gap-analysis item 2.
+  loanProductId: z.string().uuid().optional(),
   principalAmount: z.coerce.number().positive(),
   interestRate: z.coerce.number().min(0),
   termMonths: z.coerce.number().int().positive(),
@@ -27,6 +33,7 @@ async function withAging(loan: {
   id: string;
   principalAmount: any;
   interestRate: any;
+  computationMethod: "diminishing_balance" | "flat";
   termMonths: number;
   releaseDate: Date | null;
   status: string;
@@ -35,7 +42,8 @@ async function withAging(loan: {
   if (!loan.releaseDate) {
     return { ...loan, aging: null };
   }
-  const schedule = computeSchedule(
+  const schedule = computeLoanSchedule(
+    loan.computationMethod,
     Number(loan.principalAmount),
     Number(loan.interestRate),
     loan.termMonths,
@@ -61,7 +69,8 @@ async function syncLoanStatus(loanId: string) {
   if (!loan || !loan.releaseDate) return loan;
   if (!["active", "past_due"].includes(loan.status)) return loan;
 
-  const schedule = computeSchedule(
+  const schedule = computeLoanSchedule(
+    loan.computationMethod,
     Number(loan.principalAmount),
     Number(loan.interestRate),
     loan.termMonths,
@@ -114,9 +123,18 @@ loansRouter.post("/", requireRole("credit_officer", "admin"), async (req, res) =
   if (!member) throw notFound("Member not found");
   if (member.status !== "active") throw badRequest("Only active members can apply for a loan");
 
+  let computationMethod: "diminishing_balance" | "flat" | undefined;
+  if (data.loanProductId) {
+    const product = await prisma.loanProduct.findUnique({ where: { id: data.loanProductId } });
+    if (!product || !product.isActive) throw badRequest("Loan product not found or inactive");
+    computationMethod = product.computationMethod;
+  }
+
   const loan = await prisma.$transaction(async (tx) => {
     const created = await tx.loanAccount.create({
-      data: { ...data, status: "applied" },
+      // computationMethod omitted when no product was linked — the
+      // LoanAccount column's own default (diminishing balance) applies.
+      data: { ...data, status: "applied", ...(computationMethod ? { computationMethod } : {}) },
     });
     await writeAuditLog(tx, {
       entityType: "LoanAccount",
@@ -221,12 +239,21 @@ loansRouter.post("/:id/release", requireRole("cashier", "admin"), async (req, re
       data: { status: "active", releaseDate },
     });
 
+    const schedule = computeLoanSchedule(
+      loan.computationMethod,
+      principal,
+      Number(loan.interestRate),
+      loan.termMonths,
+      releaseDate
+    );
+    const totalDue = round2(schedule.reduce((sum, i) => sum + i.totalDue, 0));
+
     const loanTxn = await tx.loanTransaction.create({
       data: {
         loanAccountId: loan.id,
         type: "release",
         amount: principal,
-        balanceAfter: round2(principal + Number(loan.interestRate) * principal * loan.termMonths),
+        balanceAfter: totalDue,
         createdById: req.user!.id,
       },
     });
@@ -277,7 +304,8 @@ loansRouter.post("/:id/repayments", requireRole("cashier", "admin"), async (req,
   }
   if (!existing.releaseDate) throw conflict("Loan has not been released yet");
 
-  const schedule = computeSchedule(
+  const schedule = computeLoanSchedule(
+    existing.computationMethod,
     Number(existing.principalAmount),
     Number(existing.interestRate),
     existing.termMonths,
@@ -294,13 +322,7 @@ loansRouter.post("/:id/repayments", requireRole("cashier", "admin"), async (req,
     );
   }
 
-  const proportion = interestProportion(
-    Number(existing.principalAmount),
-    Number(existing.interestRate),
-    existing.termMonths
-  );
-  const interestPortion = round2(amount * proportion);
-  const principalPortion = round2(amount - interestPortion);
+  const { interestPortion, principalPortion } = splitRepayment(schedule, totalRepaidBefore, amount);
   const balanceAfter = round2(agingBefore.outstandingBalance - amount);
 
   const result = await prisma.$transaction(async (tx) => {

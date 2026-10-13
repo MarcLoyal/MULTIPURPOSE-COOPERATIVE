@@ -1,42 +1,40 @@
 /**
  * ============================================================================
- * TODO(chart-of-accounts): PLACEHOLDER — NOT the cooperative's real chart
- * of accounts. No existing chart of accounts was supplied (see README,
- * "Design decisions & open questions", item 2 / spec section 8.2). These
- * account codes/labels are a reasonable minimal set invented for this
- * prototype only.
+ * Chart of accounts: CDA MC 2022-24 "Revised Standard Chart of Accounts for
+ * Cooperatives" (see docs/research/Philippine_cooperative_system_rules.md).
  *
- * MUST be reconciled with the cooperative's actual books — real account
- * codes, numbering scheme, and any accounts missing here (e.g. equity,
- * retained earnings, specific income/expense lines the cooperative
- * already uses) — before this goes anywhere near a real deployment.
- * Every LedgerEntry posted by the app uses these codes directly, so a
- * wrong chart here means wrong GL/Trial Balance output once real money
- * is involved.
+ * The full reference chart — every code, label, element, normal balance,
+ * and any needs-review flag — lives in the `accounts` table, seeded by the
+ * `chart_of_accounts_mc2022_24` migration. That table is the single source
+ * of truth for labels (see accounting.routes.ts) and the FK that every
+ * LedgerEntry.accountCode is validated against.
+ *
+ * ACCOUNTS below is just the small subset of codes the app's currently
+ * -implemented modules (cash, loans, share capital) post to directly —
+ * a convenience for those call sites, not a second copy of the chart.
+ *
+ * Two mapping decisions worth flagging:
+ * - MEMBERS_SHARE_CAPITAL -> 30130 "Paid-up Share Capital - Common" is a
+ *   simplification: the current Member/ShareCapitalAccount models have no
+ *   share-class or subscribed-vs-paid-up concept yet, so every member's
+ *   balance is treated as common, paid-up capital. Revisit once share
+ *   classes are built (gap analysis item 3 / report Q10).
+ * - OTHER_INCOME / OTHER_EXPENSE (49900 / 79900) are NOT MC 2022-24 codes —
+ *   the report's curated code table had no generic other-income/expense
+ *   line item at all. They're flagged needs_review in the accounts table;
+ *   replace once the auditor or the full circular text gives a real code
+ *   (report Q16/Q17).
  * ============================================================================
  */
 export const ACCOUNTS = {
-  CASH_ON_HAND: "1000",
-  CASH_IN_BANK: "1010",
-  LOANS_RECEIVABLE: "1100",
-  MEMBERS_SHARE_CAPITAL: "2000",
-  INTEREST_INCOME: "4000",
-  PENALTY_INCOME: "4100",
-  PETTY_CASH_FUND: "1020",
-  CASH_ADVANCES: "1030",
-  OTHER_INCOME: "4900",
-  OTHER_EXPENSE: "6000",
+  CASH_ON_HAND: "11110",
+  CASH_IN_BANK: "11130",
+  PETTY_CASH_FUND: "11150",
+  CASH_ADVANCES: "11360",
+  LOANS_RECEIVABLE: "11210",
+  MEMBERS_SHARE_CAPITAL: "30130",
+  INTEREST_INCOME: "40110",
+  PENALTY_INCOME: "40140",
+  OTHER_INCOME: "49900",
+  OTHER_EXPENSE: "79900",
 } as const;
-
-export const ACCOUNT_LABELS: Record<string, string> = {
-  [ACCOUNTS.CASH_ON_HAND]: "Cash on Hand",
-  [ACCOUNTS.CASH_IN_BANK]: "Cash in Bank",
-  [ACCOUNTS.LOANS_RECEIVABLE]: "Loans Receivable",
-  [ACCOUNTS.MEMBERS_SHARE_CAPITAL]: "Members' Share Capital",
-  [ACCOUNTS.INTEREST_INCOME]: "Interest Income on Loans",
-  [ACCOUNTS.PENALTY_INCOME]: "Penalty Income",
-  [ACCOUNTS.PETTY_CASH_FUND]: "Petty Cash Fund",
-  [ACCOUNTS.CASH_ADVANCES]: "Cash Advances",
-  [ACCOUNTS.OTHER_INCOME]: "Other/Sundry Income",
-  [ACCOUNTS.OTHER_EXPENSE]: "Other/Sundry Expense",
-};
