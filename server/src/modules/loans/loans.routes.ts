@@ -117,21 +117,29 @@ loansRouter.get("/:id", async (req, res) => {
 });
 
 /**
- * Disclosure statement (RA 3765 / CDA MC 2012-05 §6): total amount
- * financed, itemized finance charge, net proceeds, the finance-charge-
- * to-total ratio, and a simple annual rate on the outstanding balance.
- * These fields are statute-fixed, not board policy, so nothing here is a
- * setting — unlike the allowance report. Two honest limitations, stated
- * on the response rather than silently glossed over:
- * - No fee schedule exists yet (Phase 0/1 scope), so net proceeds equals
- *   principal; a real disclosure must itemize filing/service fees once
- *   those exist.
- * - For a "flat" loan, the annual rate shown is the nominal rate
- *   (periodic rate x periods/year), not a true effective rate on the
- *   outstanding balance — the report's own worked example shows flat's
- *   nominal rate understates true cost. That gap is flagged explicitly
- *   rather than computed, to avoid presenting an invented number as
- *   the statute's required figure.
+ * Disclosure statement (RA 3765 §4 / CDA MC 2012-05 §6). RA 3765 requires
+ * 7 specific items; the 3 that apply to a cash loan with no fee schedule
+ * (items 1-4, covering a purchase price vs. down payment, collapse to a
+ * single "amount financed" figure here) are:
+ *   (5) total amount to be financed  -> amountFinanced
+ *   (6) finance charge, in pesos     -> financeChargeAmount
+ *   (7) finance charge expressed as a simple annual rate on the
+ *       outstanding unpaid balance   -> effectiveInterestRatePercent
+ * These are statute-fixed, not board policy, so nothing here is a
+ * setting — unlike the allowance report. totalOfPayments (amountFinanced
+ * + financeChargeAmount) is NOT one of the 7 statutory items — it's a
+ * plain-language total shown for the member's benefit, labeled as such on
+ * the client. Two honest limitations, stated on the response rather than
+ * silently glossed over:
+ * - No fee schedule exists yet (Phase 0/1 scope), so amountFinanced
+ *   equals principal; a real disclosure must itemize and deduct
+ *   filing/service fees once those exist.
+ * - For a "flat" loan, the rate shown is the nominal rate (periodic rate
+ *   x periods/year), not a true effective rate on the outstanding
+ *   balance — the report's own worked example shows flat's nominal rate
+ *   understates true cost. That gap is flagged explicitly (isNominalRateOnly)
+ *   rather than computed, to avoid presenting an invented number as the
+ *   statute's required figure.
  */
 loansRouter.get("/:id/disclosure", async (req, res) => {
   const loan = await prisma.loanAccount.findUnique({ where: { id: req.params.id }, include: { member: true } });
@@ -143,10 +151,9 @@ loansRouter.get("/:id/disclosure", async (req, res) => {
   const releaseDate = loan.releaseDate ?? new Date();
   const schedule = computeLoanSchedule(loan.computationMethod, principal, periodicRate, loan.termMonths, releaseDate);
   const totalInterest = round2(schedule.reduce((sum, i) => sum + i.interestDue, 0));
-  const totalAmountFinanced = round2(principal + totalInterest);
-  const netProceeds = principal; // no fee schedule yet — see doc comment above
-  const financeChargeRatio = totalAmountFinanced > 0 ? round2((totalInterest / totalAmountFinanced) * 100) : 0;
-  const annualRateNominalPercent = round2(periodicRate * periodsPerYear * 100);
+  const amountFinanced = principal; // no fee schedule yet — see doc comment above
+  const totalOfPayments = round2(amountFinanced + totalInterest);
+  const effectiveInterestRatePercent = round2(periodicRate * periodsPerYear * 100);
 
   res.json({
     loanId: loan.id,
@@ -157,12 +164,11 @@ loansRouter.get("/:id/disclosure", async (req, res) => {
     principalAmount: principal,
     termMonths: loan.termMonths,
     totalInterest,
-    totalAmountFinanced,
-    netProceeds,
-    financeChargeRatioPercent: financeChargeRatio,
-    annualRateNominalPercent,
+    amountFinanced,
+    totalOfPayments,
+    effectiveInterestRatePercent,
     isNominalRateOnly: loan.computationMethod === "flat",
-    feesNote: "No fee schedule is modeled yet — net proceeds shown equals principal.",
+    feesNote: "No fee schedule is modeled yet — amount financed shown equals principal.",
   });
 });
 

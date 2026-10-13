@@ -255,20 +255,22 @@ export function LoanDetailPage() {
                 </div>
               )}
               <dl className="grid grid-cols-2 gap-y-2">
-                <dt className="text-slate-500">Total amount financed</dt>
-                <dd className="text-right font-medium">{formatCurrency(disclosure.totalAmountFinanced)}</dd>
+                <dt className="text-slate-500">Amount financed</dt>
+                <dd className="text-right font-medium">{formatCurrency(disclosure.amountFinanced)}</dd>
                 <dt className="text-slate-500">Finance charge (total interest)</dt>
                 <dd className="text-right font-medium">{formatCurrency(disclosure.totalInterest)}</dd>
-                <dt className="text-slate-500">Net proceeds</dt>
-                <dd className="text-right font-medium">{formatCurrency(disclosure.netProceeds)}</dd>
-                <dt className="text-slate-500">Finance charge % of total</dt>
-                <dd className="text-right font-medium">{disclosure.financeChargeRatioPercent}%</dd>
+                <dt className="text-slate-500">Total of payments</dt>
+                <dd className="text-right font-medium">{formatCurrency(disclosure.totalOfPayments)}</dd>
                 <dt className="text-slate-500">
-                  {disclosure.isNominalRateOnly ? "Nominal annual rate" : "Annual rate on outstanding balance"}
+                  {disclosure.isNominalRateOnly ? "Nominal interest rate (per annum)" : "Effective interest rate (per annum)"}
                 </dt>
-                <dd className="text-right font-medium">{disclosure.annualRateNominalPercent}%</dd>
+                <dd className="text-right font-medium">{disclosure.effectiveInterestRatePercent}%</dd>
               </dl>
               <p className="text-xs text-slate-400">{disclosure.feesNote}</p>
+              <p className="text-xs text-slate-400">
+                "Total of payments" is shown for the member's convenience and is not itself one of RA 3765's
+                required disclosure items — amount financed, finance charge, and the effective annual rate are.
+              </p>
             </div>
           )}
         </div>
