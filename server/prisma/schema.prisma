@@ -150,6 +150,7 @@ enum LedgerSourceType {
   loan
   cash
   manual
+  deposit
 }
 
 enum AccountElement {
@@ -378,6 +379,8 @@ model LedgerEntry {
   loanTransaction           LoanTransaction?         @relation(fields: [loanTransactionId], references: [id])
   cashTransactionId         String?                  @map("cash_transaction_id")
   cashTransaction           CashTransaction?         @relation(fields: [cashTransactionId], references: [id])
+  depositTransactionId      String?                  @map("deposit_transaction_id")
+  depositTransaction        DepositTransaction?      @relation(fields: [depositTransactionId], references: [id])
 
   batchId    String   @map("batch_id")
   memo       String?
@@ -388,15 +391,22 @@ model LedgerEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 0 scaffolding — deposits, statutory funds, fiscal years.
+// Deposits (wired up — see modules/deposits/deposits.routes.ts) and
+// statutory funds / fiscal years (still schema-only scaffolding).
 //
-// Schema only. Nothing in server/src imports or routes to these models;
-// no UI reads or writes them. They exist so the data shape is in place
-// ahead of time, per report gap-analysis items 3 and 4, but every one of
-// these features needs cooperative-specific answers (does it even offer
-// deposits? what are the bylaws' fund percentages? etc. — report
-// Q7-Q15, Q36-Q45) before it can be switched on. Do not wire routes or
-// UI to these without that.
+// The deposit models below were Phase 0 scaffolding (report gap-analysis
+// item 3) and are now routed: deposits.routes.ts implements products,
+// account open/close, deposit/withdrawal, and a manual interest-credit
+// action. The cooperative-specific answers the Phase 0 comment flagged
+// (does it even offer deposits? what rates/terms?) are handled the same
+// way allowance rates were in Phase 1 — real board-approved products are
+// created through the app, not hard-coded, so nothing here assumes an
+// answer the cooperative hasn't given yet.
+//
+// FiscalYear / StatutoryFundAllocation below remain schema-only: nothing
+// in server/src routes to them yet (report gap-analysis item 4, Q36-Q45)
+// — building that needs a net-surplus/income-statement calculation this
+// app doesn't have yet, which is a separate, later piece of work.
 // ---------------------------------------------------------------------------
 
 // Savings and time deposits are liabilities, legally and in the mandatory
@@ -450,6 +460,8 @@ model DepositTransaction {
   balanceAfter     Decimal        @db.Decimal(18, 2) @map("balance_after")
   createdById      String         @map("created_by")
   createdAt        DateTime       @default(now()) @map("created_at")
+
+  ledgerEntries LedgerEntry[]
 
   @@map("deposit_transactions")
 }

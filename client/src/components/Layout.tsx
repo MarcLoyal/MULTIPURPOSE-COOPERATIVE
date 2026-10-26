@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/members", label: "Members" },
   { to: "/share-capital", label: "Share Capital" },
   { to: "/loans", label: "Loans" },
+  { to: "/deposits", label: "Deposits" },
   { to: "/cash", label: "Cash" },
   { to: "/ledger", label: "General Ledger" },
   { to: "/trial-balance", label: "Trial Balance" },
@@ -18,7 +19,11 @@ const SETTINGS_ROLES = ["manager", "accountant", "admin"];
 export function Layout() {
   const { user, logout } = useAuth();
   const navItems = user && SETTINGS_ROLES.includes(user.role)
-    ? [...NAV_ITEMS, { to: "/settings/allowance-rates", label: "Settings" }]
+    ? [
+        ...NAV_ITEMS,
+        { to: "/settings/allowance-rates", label: "Allowance Settings" },
+        { to: "/settings/deposit-products", label: "Deposit Products" },
+      ]
     : NAV_ITEMS;
 
   return (

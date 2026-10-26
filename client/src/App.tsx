@@ -13,6 +13,9 @@ import { LedgerPage } from "./pages/LedgerPage";
 import { TrialBalancePage } from "./pages/TrialBalancePage";
 import { AllowanceReportPage } from "./pages/AllowanceReportPage";
 import { AllowanceSettingsPage } from "./pages/AllowanceSettingsPage";
+import { DepositsPage } from "./pages/DepositsPage";
+import { DepositAccountDetailPage } from "./pages/DepositAccountDetailPage";
+import { DepositProductsSettingsPage } from "./pages/DepositProductsSettingsPage";
 
 function ProtectedArea() {
   const { user, loading } = useAuth();
@@ -34,11 +37,14 @@ export default function App() {
             <Route path="/share-capital" element={<ShareCapitalPage />} />
             <Route path="/loans" element={<LoansPage />} />
             <Route path="/loans/:id" element={<LoanDetailPage />} />
+            <Route path="/deposits" element={<DepositsPage />} />
+            <Route path="/deposits/:id" element={<DepositAccountDetailPage />} />
             <Route path="/cash" element={<CashPage />} />
             <Route path="/ledger" element={<LedgerPage />} />
             <Route path="/trial-balance" element={<TrialBalancePage />} />
             <Route path="/allowance-report" element={<AllowanceReportPage />} />
             <Route path="/settings/allowance-rates" element={<AllowanceSettingsPage />} />
+            <Route path="/settings/deposit-products" element={<DepositProductsSettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
