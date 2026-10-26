@@ -186,3 +186,49 @@ export type LoanDisclosure = {
   isNominalRateOnly: boolean;
   feesNote: string;
 };
+
+export type DepositType = "savings" | "time";
+export type DepositComputationBasis =
+  | "daily_balance"
+  | "average_daily_balance"
+  | "lowest_monthly_balance"
+  | "month_end_balance";
+export type DepositAccountStatus = "active" | "closed";
+export type DepositTxnType = "deposit" | "withdrawal" | "interest_credit" | "pretermination_penalty";
+
+export type DepositProduct = {
+  id: string;
+  name: string;
+  type: DepositType;
+  interestRate: string;
+  computationBasis: DepositComputationBasis;
+  creditingFrequencyMonths: number;
+  minimumBalance: string;
+  termMonths: number | null;
+  preTerminationPenaltyRate: string | null;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type DepositTransaction = {
+  id: string;
+  depositAccountId: string;
+  type: DepositTxnType;
+  amount: string;
+  balanceAfter: string;
+  createdById: string;
+  createdAt: string;
+};
+
+export type DepositAccount = {
+  id: string;
+  memberId: string;
+  depositProductId: string;
+  balance: string;
+  status: DepositAccountStatus;
+  openedAt: string;
+  closedAt: string | null;
+  member?: Member;
+  depositProduct?: DepositProduct;
+  transactions?: DepositTransaction[];
+};

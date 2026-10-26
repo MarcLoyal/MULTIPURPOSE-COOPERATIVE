@@ -47,4 +47,12 @@ export const ACCOUNTS = {
   OTHER_INCOME: "49900",
   OTHER_EXPENSE: "79900",
   PROBABLE_LOSSES_EXPENSE: "73380",
+  // Deposit liabilities (report gap-analysis item 3) — see
+  // lib/depositInterest.ts for how DepositProduct.type maps to one of
+  // these. "Other Deposit Liabilities" (21130) has no corresponding
+  // DepositType in the schema, so it's intentionally unmapped, same
+  // reasoning as the unmapped loan "litigation" bucket.
+  SAVINGS_DEPOSITS: "21110",
+  TIME_DEPOSITS: "21120",
+  INTEREST_EXPENSE_ON_DEPOSITS: "71200",
 } as const;
