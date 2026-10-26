@@ -187,6 +187,23 @@ export type LoanDisclosure = {
   feesNote: string;
 };
 
+export type IncomeStatementRow = {
+  accountCode: string;
+  accountLabel: string;
+  element: "revenue" | "expense";
+  amount: number;
+};
+
+export type IncomeStatement = {
+  fromDate: string | null;
+  toDate: string | null;
+  revenueRows: IncomeStatementRow[];
+  expenseRows: IncomeStatementRow[];
+  totalRevenue: number;
+  totalExpense: number;
+  netSurplus: number;
+};
+
 export type DepositType = "savings" | "time";
 export type DepositComputationBasis =
   | "daily_balance"

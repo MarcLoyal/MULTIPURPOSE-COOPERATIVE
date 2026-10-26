@@ -11,6 +11,7 @@ import { LoanDetailPage } from "./pages/LoanDetailPage";
 import { CashPage } from "./pages/CashPage";
 import { LedgerPage } from "./pages/LedgerPage";
 import { TrialBalancePage } from "./pages/TrialBalancePage";
+import { IncomeStatementPage } from "./pages/IncomeStatementPage";
 import { AllowanceReportPage } from "./pages/AllowanceReportPage";
 import { AllowanceSettingsPage } from "./pages/AllowanceSettingsPage";
 import { DepositsPage } from "./pages/DepositsPage";
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/cash" element={<CashPage />} />
             <Route path="/ledger" element={<LedgerPage />} />
             <Route path="/trial-balance" element={<TrialBalancePage />} />
+            <Route path="/income-statement" element={<IncomeStatementPage />} />
             <Route path="/allowance-report" element={<AllowanceReportPage />} />
             <Route path="/settings/allowance-rates" element={<AllowanceSettingsPage />} />
             <Route path="/settings/deposit-products" element={<DepositProductsSettingsPage />} />
