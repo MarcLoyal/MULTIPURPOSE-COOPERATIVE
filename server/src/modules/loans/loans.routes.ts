@@ -15,7 +15,6 @@ import {
 } from "../../lib/loanSchedule";
 import { receivableAccountForStatus, reclassifyLoanReceivable } from "../../lib/loanReceivable";
 import { computeLoanLimit } from "../../lib/loanLimit";
-import { assertOfficialReceiptNumberAvailable } from "../../lib/officialReceipt";
 
 export const loansRouter = Router();
 loansRouter.use(requireAuth, requireStaff);
@@ -118,10 +117,7 @@ const applySchema = z.object({
 });
 
 const reviewSchema = z.object({ reviewNotes: z.string().min(1) });
-const repaymentSchema = z.object({
-  amount: z.coerce.number().positive(),
-  officialReceiptNumber: z.string().min(1).optional(),
-});
+const repaymentSchema = z.object({ amount: z.coerce.number().positive() });
 const penaltySchema = z.object({ amount: z.coerce.number().positive(), note: z.string().optional() });
 
 async function withAging(loan: {
@@ -234,7 +230,10 @@ loansRouter.get("/", async (req, res) => {
 loansRouter.get("/:id", async (req, res) => {
   const loan = await prisma.loanAccount.findUnique({
     where: { id: req.params.id },
-    include: { member: true, transactions: { orderBy: { createdAt: "asc" } } },
+    include: {
+      member: true,
+      transactions: { orderBy: { createdAt: "asc" }, include: { receipt: true } },
+    },
   });
   if (!loan) throw notFound("Loan not found");
   const enriched = await withAging(loan);
@@ -478,8 +477,7 @@ loansRouter.post("/:id/release", requireRole("cashier", "admin"), async (req, re
 
 // cashier records a repayment: recalculates balance, splits principal/interest, posts ledger.
 loansRouter.post("/:id/repayments", requireRole("cashier", "admin"), async (req, res) => {
-  const { amount, officialReceiptNumber } = repaymentSchema.parse(req.body);
-  if (officialReceiptNumber) await assertOfficialReceiptNumberAvailable(officialReceiptNumber);
+  const { amount } = repaymentSchema.parse(req.body);
   const existing = await prisma.loanAccount.findUnique({
     where: { id: req.params.id },
     include: { transactions: true },
@@ -518,7 +516,6 @@ loansRouter.post("/:id/repayments", requireRole("cashier", "admin"), async (req,
         type: "repayment",
         amount,
         balanceAfter,
-        officialReceiptNumber,
         createdById: req.user!.id,
       },
     });
@@ -575,30 +572,6 @@ loansRouter.post("/:id/repayments", requireRole("cashier", "admin"), async (req,
 
   await syncLoanStatus(existing.id, { id: req.user!.id, name: req.user!.name });
   res.status(201).json(result);
-});
-
-// Printable receipt for a repayment — only ever returns data for one
-// that actually has an OR# recorded (a repayment made without one has
-// nothing to print).
-loansRouter.get("/transactions/:id/receipt", async (req, res) => {
-  const txn = await prisma.loanTransaction.findUnique({
-    where: { id: req.params.id },
-    include: { loanAccount: { include: { member: true } } },
-  });
-  if (!txn || txn.type !== "repayment" || !txn.officialReceiptNumber) {
-    throw notFound("No receipt issued for this transaction");
-  }
-  const createdBy = await prisma.user.findUnique({ where: { id: txn.createdById } });
-
-  res.json({
-    officialReceiptNumber: txn.officialReceiptNumber,
-    particulars: `Loan Repayment — ${txn.loanAccount.loanProduct}`,
-    amount: Number(txn.amount),
-    date: txn.createdAt,
-    memberName: txn.loanAccount.member.fullName,
-    memberNumber: txn.loanAccount.member.memberNumber,
-    receivedByName: createdBy?.name ?? "—",
-  });
 });
 
 // Records a penalty charge (e.g. late payment fee) as its own ledger-posted transaction.

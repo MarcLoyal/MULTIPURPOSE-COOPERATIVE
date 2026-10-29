@@ -169,3 +169,45 @@ settingsRouter.put(
     res.json(updated);
   }
 );
+
+// The label printed on a receipt — see ReceiptSetting's schema
+// comment for why it's "Acknowledgment Receipt" by default, not
+// "Official Receipt".
+settingsRouter.get("/receipt-label", async (_req, res) => {
+  const row = await prisma.receiptSetting.findFirst();
+  res.json(row);
+});
+
+const receiptLabelSchema = z.object({
+  documentLabel: z.string().min(1),
+});
+
+settingsRouter.put(
+  "/receipt-label",
+  requireRole("manager", "accountant", "admin"),
+  async (req, res) => {
+    const data = receiptLabelSchema.parse(req.body);
+    const existing = await prisma.receiptSetting.findFirst();
+    if (!existing) throw badRequest("Receipt settings row is missing");
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.receiptSetting.update({
+        where: { id: existing.id },
+        data: { ...data, updatedById: req.user!.id },
+      });
+      if (existing.documentLabel !== data.documentLabel) {
+        await writeAuditLog(tx, {
+          entityType: "ReceiptSetting",
+          entityId: result.id,
+          action: "update",
+          previousValue: { documentLabel: existing.documentLabel },
+          newValue: { documentLabel: result.documentLabel },
+          performedBy: { id: req.user!.id, name: req.user!.name },
+        });
+      }
+      return result;
+    });
+
+    res.json(updated);
+  }
+);

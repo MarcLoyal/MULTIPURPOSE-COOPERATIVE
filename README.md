@@ -231,6 +231,20 @@ could be built, and what should be revisited with the actual cooperative:
    Penalty Income account (not added to the amortization schedule's
    outstanding balance). Simplification for MVP; revisit if the
    cooperative's penalty policy adds penalties to principal instead.
+6. **Receipt BIR compliance (CAS/ATP, EOPT Act)** — *unconfirmed.* Loan
+   repayment, deposit, and share capital receipts (`server/src/modules/
+   receipts/`) print a configurable document label, defaulting to
+   "Acknowledgment Receipt" rather than "Official Receipt" — that term
+   has specific implications under BIR's Computerized Accounting
+   System (CAS) / Authority to Print (ATP) rules and the Ease of Paying
+   Taxes (EOPT) Act's invoicing requirements, which this cooperative's
+   accountant hasn't confirmed this app meets. The numbering itself
+   (gap-free sequential, void-not-delete, reprint-marked — see the
+   `Receipt` model's schema comment) was built audit-safe in
+   anticipation of that confirmation, but the label should stay off
+   "Official Receipt" and the cooperative should not rely on this
+   app's receipts as BIR-compliant invoices until that's resolved.
+   Change the label at Settings → Receipt Label once it is.
 
 ## Non-goals for this MVP (spec section 7)
 

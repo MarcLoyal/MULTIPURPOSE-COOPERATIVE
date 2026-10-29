@@ -28,6 +28,7 @@ export function Layout() {
         { to: "/settings/loan-products", label: "Loan Products" },
         { to: "/settings/dividend-rates", label: "Dividend Rates" },
         { to: "/settings/loan-limit", label: "Loan Limit" },
+        { to: "/settings/receipt-label", label: "Receipt Label" },
       ]
     : NAV_ITEMS;
 

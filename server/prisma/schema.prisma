@@ -238,6 +238,7 @@ model Member {
   loanAccounts        LoanAccount[]
   depositAccounts     DepositAccount[]
   userAccount         User?                @relation("MemberLogin")
+  receipts            Receipt[]
 
   @@map("members")
 }
@@ -262,17 +263,13 @@ model ShareCapitalTransaction {
   type                  ShareCapitalTxnType
   amount                Decimal                @db.Decimal(18, 2)
   status                ShareCapitalTxnStatus  @default(pending)
-  // Set only when approving a subscription/additional_purchase (the
-  // inflow types a member actually pays for) — see
-  // lib/officialReceipt.ts's doc comment on LoanTransaction for why
-  // it's optional and cross-table-unique rather than a required column.
-  officialReceiptNumber String?                @unique @map("official_receipt_number")
   createdById           String                 @map("created_by")
   approvedById          String?                @map("approved_by")
   createdAt             DateTime               @default(now()) @map("created_at")
   approvedAt            DateTime?              @map("approved_at")
 
   ledgerEntries LedgerEntry[]
+  receipt       Receipt?
 
   @@map("share_capital_transactions")
 }
@@ -337,19 +334,12 @@ model LoanTransaction {
   type          LoanTxnType
   amount        Decimal     @db.Decimal(18, 2)
   balanceAfter  Decimal     @db.Decimal(18, 2) @map("balance_after")
-  // Set only for type=repayment — the physical OR booklet number the
-  // cashier wrote when the member paid. Optional: historical repayments
-  // predate this field, and a repayment can still be recorded without
-  // one. Uniqueness is enforced per-column here, plus a cross-table
-  // check in lib/officialReceipt.ts against every other transaction
-  // type's column (OR booklets are one shared numbered sequence in
-  // practice, not per transaction type).
-  officialReceiptNumber String? @unique @map("official_receipt_number")
   createdById   String      @map("created_by")
   createdAt     DateTime    @default(now()) @map("created_at")
 
   ledgerEntries LedgerEntry[]
   cashTransactions CashTransaction[]
+  receipt       Receipt?
 
   @@map("loan_transactions")
 }
@@ -497,14 +487,11 @@ model DepositTransaction {
   type             DepositTxnType
   amount           Decimal        @db.Decimal(18, 2)
   balanceAfter     Decimal        @db.Decimal(18, 2) @map("balance_after")
-  // Set only for type=deposit — see lib/officialReceipt.ts's doc
-  // comment on LoanTransaction for why it's optional and
-  // cross-table-unique rather than a required column.
-  officialReceiptNumber String?   @unique @map("official_receipt_number")
   createdById      String         @map("created_by")
   createdAt        DateTime       @default(now()) @map("created_at")
 
   ledgerEntries LedgerEntry[]
+  receipt       Receipt?
 
   @@map("deposit_transactions")
 }
@@ -632,6 +619,89 @@ model LoanLimitSetting {
   updatedById            String?  @map("updated_by")
 
   @@map("loan_limit_settings")
+}
+
+// Printable receipts (report gap-analysis item: official receipts for
+// payments, deposits, share capital — printable). Audit-safe by
+// construction rather than by policy:
+//   - sequenceNumber comes from ReceiptSequenceCounter, incremented
+//     atomically inside the same DB transaction as the Receipt insert
+//     (a row-level UPDATE lock, not a Postgres SEQUENCE — a SEQUENCE
+//     can skip values on rollback, which would violate "no gaps").
+//   - No delete route exists anywhere in this app for Receipt, and
+//     nothing cascade-deletes into it. A mistake is voided (status,
+//     voidReason, voidedById/At set), never removed — the sequence
+//     number stays permanently consumed, satisfying "no gaps" even
+//     through a void.
+//   - printCount increments each time the printable page is fetched;
+//     the client treats printCount > 1 as a reprint and labels it so.
+//     This is an honest proxy, not a guarantee the browser's print
+//     dialog was actually used, which no server can observe.
+//   - documentLabel snapshots ReceiptSetting at issuance time, so a
+//     later label change (e.g. once BIR requirements are confirmed)
+//     never retroactively relabels an already-printed receipt.
+enum ReceiptSourceType {
+  loan_repayment
+  deposit
+  share_capital
+}
+
+enum ReceiptStatus {
+  active
+  void
+}
+
+model Receipt {
+  id             String            @id @default(uuid())
+  sequenceNumber Int               @unique @map("sequence_number")
+  documentLabel  String            @map("document_label")
+  sourceType     ReceiptSourceType @map("source_type")
+
+  loanTransactionId String?          @unique @map("loan_transaction_id")
+  loanTransaction   LoanTransaction? @relation(fields: [loanTransactionId], references: [id])
+
+  depositTransactionId String?             @unique @map("deposit_transaction_id")
+  depositTransaction   DepositTransaction? @relation(fields: [depositTransactionId], references: [id])
+
+  shareCapitalTransactionId String?                  @unique @map("share_capital_transaction_id")
+  shareCapitalTransaction   ShareCapitalTransaction? @relation(fields: [shareCapitalTransactionId], references: [id])
+
+  amount    Decimal @db.Decimal(18, 2)
+  memberId  String  @map("member_id")
+  member    Member  @relation(fields: [memberId], references: [id])
+
+  status     ReceiptStatus @default(active)
+  voidReason String?       @map("void_reason")
+  voidedById String?       @map("voided_by")
+  voidedAt   DateTime?     @map("voided_at")
+
+  printCount  Int      @default(0) @map("print_count")
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("receipts")
+}
+
+// Single-row atomic counter — see Receipt's doc comment above.
+model ReceiptSequenceCounter {
+  id         String @id @default(uuid())
+  lastNumber Int    @default(0) @map("last_number")
+
+  @@map("receipt_sequence_counter")
+}
+
+// Single-row setting: the label printed on a receipt (e.g.
+// "Acknowledgment Receipt"). Deliberately NOT "Official Receipt" by
+// default — that term has specific BIR CAS/ATP implications under the
+// EOPT Act this cooperative hasn't confirmed yet. Editable here once
+// the cooperative's accountant does. See README's open questions.
+model ReceiptSetting {
+  id            String   @id @default(uuid())
+  documentLabel String   @default("Acknowledgment Receipt") @map("document_label")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  updatedById   String?  @map("updated_by")
+
+  @@map("receipt_settings")
 }
 
 model AuditLog {

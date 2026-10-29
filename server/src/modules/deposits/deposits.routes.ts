@@ -7,7 +7,6 @@ import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
 import { round2 } from "../../lib/loanSchedule";
-import { assertOfficialReceiptNumberAvailable } from "../../lib/officialReceipt";
 
 export const depositsRouter = Router();
 depositsRouter.use(requireAuth, requireStaff);
@@ -138,7 +137,7 @@ depositsRouter.get("/accounts/:id", async (req, res) => {
     include: {
       member: true,
       depositProduct: true,
-      transactions: { orderBy: { createdAt: "desc" } },
+      transactions: { orderBy: { createdAt: "desc" }, include: { receipt: true } },
     },
   });
   if (!account) throw notFound("Deposit account not found");
@@ -221,9 +220,6 @@ depositsRouter.post(
 const txnSchema = z.object({
   type: z.enum(["deposit", "withdrawal"]),
   amount: z.coerce.number().positive(),
-  // Only meaningful for type=deposit — a member paying in is what gets
-  // an official receipt; a withdrawal is a payout, not a receipt.
-  officialReceiptNumber: z.string().min(1).optional(),
 });
 
 // cashier records a deposit or withdrawal — immediate, no approval step,
@@ -233,11 +229,7 @@ depositsRouter.post(
   "/accounts/:id/transactions",
   requireRole("cashier", "admin"),
   async (req, res) => {
-    const { type, amount, officialReceiptNumber } = txnSchema.parse(req.body);
-    if (officialReceiptNumber) {
-      if (type !== "deposit") throw badRequest("An official receipt number only applies to a deposit, not a withdrawal");
-      await assertOfficialReceiptNumberAvailable(officialReceiptNumber);
-    }
+    const { type, amount } = txnSchema.parse(req.body);
     const account = await prisma.depositAccount.findUnique({
       where: { id: req.params.id },
       include: { depositProduct: true },
@@ -281,7 +273,6 @@ depositsRouter.post(
           type,
           amount: roundedAmount,
           balanceAfter,
-          officialReceiptNumber,
           createdById: req.user!.id,
         },
       });
@@ -306,28 +297,6 @@ depositsRouter.post(
     res.status(201).json(result);
   }
 );
-
-// Printable receipt for a deposit — only for one with an OR# recorded.
-depositsRouter.get("/transactions/:id/receipt", async (req, res) => {
-  const txn = await prisma.depositTransaction.findUnique({
-    where: { id: req.params.id },
-    include: { depositAccount: { include: { member: true, depositProduct: true } } },
-  });
-  if (!txn || txn.type !== "deposit" || !txn.officialReceiptNumber) {
-    throw notFound("No receipt issued for this transaction");
-  }
-  const createdBy = await prisma.user.findUnique({ where: { id: txn.createdById } });
-
-  res.json({
-    officialReceiptNumber: txn.officialReceiptNumber,
-    particulars: `Deposit — ${txn.depositAccount.depositProduct.name}`,
-    amount: Number(txn.amount),
-    date: txn.createdAt,
-    memberName: txn.depositAccount.member.fullName,
-    memberNumber: txn.depositAccount.member.memberNumber,
-    receivedByName: createdBy?.name ?? "—",
-  });
-});
 
 // Closes an account, paying out whatever remains. A time deposit closed
 // before its term matures incurs the product's pre-termination penalty

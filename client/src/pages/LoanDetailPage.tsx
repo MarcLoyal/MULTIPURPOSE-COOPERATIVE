@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { LoanAccount, LoanDisclosure } from "../lib/types";
 import { Badge } from "../components/Badge";
+import { ReceiptCell } from "../components/ReceiptCell";
 import { ActivityLog } from "../components/ActivityLog";
 import { formatCurrency, formatDate } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
@@ -18,7 +19,6 @@ export function LoanDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [repaymentAmount, setRepaymentAmount] = useState("");
-  const [repaymentOrNumber, setRepaymentOrNumber] = useState("");
 
   function load() {
     if (!id) return;
@@ -51,12 +51,8 @@ export function LoanDetailPage() {
 
   async function submitRepayment(e: FormEvent) {
     e.preventDefault();
-    await act("repayments", {
-      amount: Number(repaymentAmount),
-      officialReceiptNumber: repaymentOrNumber || undefined,
-    });
+    await act("repayments", { amount: Number(repaymentAmount) });
     setRepaymentAmount("");
-    setRepaymentOrNumber("");
   }
 
   if (!loan) return <p className="text-slate-500">Loading…</p>;
@@ -177,15 +173,6 @@ export function LoanDetailPage() {
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">OR number (optional)</label>
-                <input
-                  placeholder="Official receipt #"
-                  value={repaymentOrNumber}
-                  onChange={(e) => setRepaymentOrNumber(e.target.value)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
               <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
                 Submit Repayment
               </button>
@@ -218,14 +205,14 @@ export function LoanDetailPage() {
                       <td className="px-4 py-2">{formatCurrency(t.balanceAfter)}</td>
                       <td className="px-4 py-2">{formatDate(t.createdAt)}</td>
                       <td className="px-4 py-2">
-                        {t.officialReceiptNumber ? (
-                          <Link
-                            to={`/receipts/loan/${t.id}`}
-                            target="_blank"
-                            className="text-slate-900 text-xs font-medium hover:underline"
-                          >
-                            OR#{t.officialReceiptNumber}
-                          </Link>
+                        {t.type === "repayment" ? (
+                          <ReceiptCell
+                            receipt={t.receipt}
+                            transactionId={t.id}
+                            sourceField="loanTransactionId"
+                            userRole={role}
+                            onChange={load}
+                          />
                         ) : (
                           "—"
                         )}

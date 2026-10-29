@@ -1,17 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { Member, ShareCapitalTransaction, ShareCapitalTxnType } from "../lib/types";
 import { Badge } from "../components/Badge";
+import { ReceiptCell } from "../components/ReceiptCell";
 import { formatDateTime } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
 const TYPES: ShareCapitalTxnType[] = ["subscription", "additional_purchase", "withdrawal", "transfer", "dividend"];
 const CAN_RECORD = ["cashier", "accountant", "manager", "admin"];
 const CAN_APPROVE = ["manager", "admin"];
-// Of the inflow types, only these are a member actually paying in cash
-// — "dividend" is a system-posted credit with nothing to receipt.
-const PAID_INFLOW_TYPES: ShareCapitalTxnType[] = ["subscription", "additional_purchase"];
 
 export function ShareCapitalPage() {
   const { user } = useAuth();
@@ -20,7 +17,6 @@ export function ShareCapitalPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ memberId: "", type: "subscription" as ShareCapitalTxnType, amount: "" });
-  const [orInputs, setOrInputs] = useState<Record<string, string>>({});
 
   function load() {
     api.get<ShareCapitalTransaction[]>("/share-capital/transactions").then(setTxns);
@@ -47,14 +43,7 @@ export function ShareCapitalPage() {
   async function act(id: string, action: "approve" | "reject") {
     setError(null);
     try {
-      const body =
-        action === "approve" && orInputs[id] ? { officialReceiptNumber: orInputs[id] } : undefined;
-      await api.post(`/share-capital/transactions/${id}/${action}`, body);
-      setOrInputs((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
+      await api.post(`/share-capital/transactions/${id}/${action}`);
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : `Failed to ${action}`);
@@ -165,14 +154,14 @@ export function ShareCapitalPage() {
                   </td>
                   <td className="px-4 py-2">{formatDateTime(t.createdAt)}</td>
                   <td className="px-4 py-2">
-                    {t.officialReceiptNumber ? (
-                      <Link
-                        to={`/receipts/share-capital/${t.id}`}
-                        target="_blank"
-                        className="text-slate-900 text-xs font-medium hover:underline"
-                      >
-                        OR#{t.officialReceiptNumber}
-                      </Link>
+                    {t.status === "posted" && (t.type === "subscription" || t.type === "additional_purchase") ? (
+                      <ReceiptCell
+                        receipt={t.receipt}
+                        transactionId={t.id}
+                        sourceField="shareCapitalTransactionId"
+                        userRole={user?.role}
+                        onChange={load}
+                      />
                     ) : (
                       "—"
                     )}
@@ -181,14 +170,6 @@ export function ShareCapitalPage() {
                     <td className="px-4 py-2">
                       {t.status === "pending" && (
                         <div className="flex gap-2 items-center">
-                          {PAID_INFLOW_TYPES.includes(t.type) && (
-                            <input
-                              placeholder="OR # (optional)"
-                              value={orInputs[t.id] ?? ""}
-                              onChange={(e) => setOrInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                              className="rounded-md border border-slate-300 px-2 py-1 text-xs w-28"
-                            />
-                          )}
                           <button
                             onClick={() => act(t.id, "approve")}
                             className="text-emerald-700 text-xs font-medium hover:underline"
