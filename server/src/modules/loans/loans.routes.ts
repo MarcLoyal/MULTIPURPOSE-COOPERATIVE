@@ -18,17 +18,92 @@ import { receivableAccountForStatus, reclassifyLoanReceivable } from "../../lib/
 export const loansRouter = Router();
 loansRouter.use(requireAuth);
 
+// ---------------------------------------------------------------------------
+// Loan products (board-approved — report gap-analysis item 2). Registered
+// before the /:id routes below so "/products" never gets captured as an
+// :id param.
+//
+// Unlike deposit products (settings-only isActive toggle), a loan
+// product's rate/term/computation fields are freely editable here even
+// after it has live loans under it: LoanAccount already snapshots
+// computationMethod, ratePeriod and interestRate onto its own columns at
+// application time (see applySchema below), so an edit here only ever
+// affects applications submitted after the edit, never an existing
+// loan's contract.
+// ---------------------------------------------------------------------------
+
+const createProductSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  interestRate: z.coerce.number().min(0),
+  ratePeriod: z.enum(["monthly", "annual"]).optional(),
+  computationMethod: z.enum(["diminishing_balance", "flat"]).optional(),
+  amortizationStyle: z.enum(["equal_payment", "equal_principal"]).optional(),
+});
+
+loansRouter.get("/products", async (_req, res) => {
+  const products = await prisma.loanProduct.findMany({ orderBy: { name: "asc" } });
+  res.json(products);
+});
+
+loansRouter.post(
+  "/products",
+  requireRole("manager", "accountant", "admin"),
+  async (req, res) => {
+    const data = createProductSchema.parse(req.body);
+
+    const created = await prisma.$transaction(async (tx) => {
+      const product = await tx.loanProduct.create({ data });
+      await writeAuditLog(tx, {
+        entityType: "LoanProduct",
+        entityId: product.id,
+        action: "create",
+        newValue: product,
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+      return product;
+    });
+
+    res.status(201).json(created);
+  }
+);
+
+const updateProductSchema = createProductSchema.partial().extend({ isActive: z.boolean().optional() });
+
+loansRouter.patch(
+  "/products/:id",
+  requireRole("manager", "accountant", "admin"),
+  async (req, res) => {
+    const data = updateProductSchema.parse(req.body);
+    const existing = await prisma.loanProduct.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw notFound("Loan product not found");
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const product = await tx.loanProduct.update({ where: { id: existing.id }, data });
+      await writeAuditLog(tx, {
+        entityType: "LoanProduct",
+        entityId: product.id,
+        action: "update",
+        previousValue: existing,
+        newValue: product,
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+      return product;
+    });
+
+    res.json(updated);
+  }
+);
+
 const applySchema = z.object({
   memberId: z.string().uuid(),
-  loanProduct: z.string().min(1),
-  // Optional: links the loan to a board-approved LoanProduct, whose
-  // computationMethod is snapshotted onto the loan. The client has no
-  // product picker yet (out of scope for Phase 0), so this is normally
-  // omitted and the loan gets the LoanAccount column's own default
-  // (diminishing balance) instead — see report gap-analysis item 2.
-  loanProductId: z.string().uuid().optional(),
+  // Every application links to a board-approved LoanProduct now — its
+  // name, interestRate, computationMethod and ratePeriod are snapshotted
+  // onto the LoanAccount at application time (see the product routes'
+  // doc comment below for why that snapshot makes later product edits
+  // safe), so none of those are taken from client input anymore.
+  loanProductId: z.string().uuid(),
   principalAmount: z.coerce.number().positive(),
-  interestRate: z.coerce.number().min(0),
   termMonths: z.coerce.number().int().positive(),
 });
 
@@ -216,32 +291,21 @@ loansRouter.post("/", requireRole("credit_officer", "admin"), async (req, res) =
   if (!member) throw notFound("Member not found");
   if (member.status !== "active") throw badRequest("Only active members can apply for a loan");
 
-  let computationMethod: "diminishing_balance" | "flat" | undefined;
-  let ratePeriod: "monthly" | "annual" | undefined;
-  if (data.loanProductId) {
-    const product = await prisma.loanProduct.findUnique({ where: { id: data.loanProductId } });
-    if (!product || !product.isActive) throw badRequest("Loan product not found or inactive");
-    computationMethod = product.computationMethod;
-    ratePeriod = product.ratePeriod;
-  }
+  const product = await prisma.loanProduct.findUnique({ where: { id: data.loanProductId } });
+  if (!product || !product.isActive) throw badRequest("Loan product not found or inactive");
 
   const loan = await prisma.$transaction(async (tx) => {
     const created = await tx.loanAccount.create({
-      // Explicit fields, not a spread — see members.routes.ts's create()
-      // for why. computationMethod/ratePeriod pass through as `undefined`
-      // when no product was linked, which Prisma treats as "not set" the
-      // same as omitting the key, so the LoanAccount columns' own
-      // defaults (diminishing balance, monthly) still apply.
       data: {
         memberId: data.memberId,
-        loanProduct: data.loanProduct,
-        loanProductId: data.loanProductId,
+        loanProduct: product.name,
+        loanProductId: product.id,
         principalAmount: data.principalAmount,
-        interestRate: data.interestRate,
+        interestRate: product.interestRate,
         termMonths: data.termMonths,
         status: "applied",
-        computationMethod,
-        ratePeriod,
+        computationMethod: product.computationMethod,
+        ratePeriod: product.ratePeriod,
       },
     });
     await writeAuditLog(tx, {

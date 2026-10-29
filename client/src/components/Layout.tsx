@@ -25,6 +25,7 @@ export function Layout() {
         ...NAV_ITEMS,
         { to: "/settings/allowance-rates", label: "Allowance Settings" },
         { to: "/settings/deposit-products", label: "Deposit Products" },
+        { to: "/settings/loan-products", label: "Loan Products" },
       ]
     : NAV_ITEMS;
 

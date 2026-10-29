@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import { LoanAccount, Member } from "../lib/types";
+import { LoanAccount, LoanProduct, Member } from "../lib/types";
 import { Badge } from "../components/Badge";
 import { useAuth } from "../context/AuthContext";
 
@@ -11,13 +11,13 @@ export function LoansPage() {
   const { user } = useAuth();
   const [loans, setLoans] = useState<LoanAccount[] | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [products, setProducts] = useState<LoanProduct[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     memberId: "",
-    loanProduct: "Regular Loan",
+    loanProductId: "",
     principalAmount: "",
-    interestRate: "0.02",
     termMonths: "12",
   });
 
@@ -28,6 +28,7 @@ export function LoansPage() {
   useEffect(() => {
     load();
     api.get<Member[]>("/members?status=active").then(setMembers);
+    api.get<LoanProduct[]>("/loans/products").then((p) => setProducts(p.filter((x) => x.isActive)));
   }, []);
 
   async function handleApply(e: FormEvent) {
@@ -35,9 +36,9 @@ export function LoansPage() {
     setError(null);
     try {
       await api.post("/loans", {
-        ...form,
+        memberId: form.memberId,
+        loanProductId: form.loanProductId,
         principalAmount: Number(form.principalAmount),
-        interestRate: Number(form.interestRate),
         termMonths: Number(form.termMonths),
       });
       setShowForm(false);
@@ -66,7 +67,14 @@ export function LoansPage() {
         )}
       </div>
 
-      {showForm && (
+      {showForm && products.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-xl p-4 mb-6">
+          No active loan products yet — ask a manager/accountant/admin to create one under Settings → Loan Products
+          before an application can be submitted.
+        </div>
+      )}
+
+      {showForm && products.length > 0 && (
         <form onSubmit={handleApply} className="bg-white border border-slate-200 rounded-xl p-5 mb-6 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <select
@@ -82,13 +90,19 @@ export function LoansPage() {
                 </option>
               ))}
             </select>
-            <input
+            <select
               required
-              placeholder="Loan product (e.g. Regular Loan)"
-              value={form.loanProduct}
-              onChange={(e) => setForm({ ...form, loanProduct: e.target.value })}
+              value={form.loanProductId}
+              onChange={(e) => setForm({ ...form, loanProductId: e.target.value })}
               className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
+            >
+              <option value="">Select loan product…</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} — {(Number(p.interestRate) * 100).toFixed(2)}%/{p.ratePeriod === "annual" ? "yr" : "mo"}
+                </option>
+              ))}
+            </select>
             <input
               required
               type="number"
@@ -97,16 +111,6 @@ export function LoansPage() {
               placeholder="Principal amount"
               value={form.principalAmount}
               onChange={(e) => setForm({ ...form, principalAmount: e.target.value })}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
-              required
-              type="number"
-              min="0"
-              step="0.0001"
-              placeholder="Flat monthly interest rate (e.g. 0.02 = 2%/mo)"
-              value={form.interestRate}
-              onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
               className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
             <input
