@@ -24,6 +24,13 @@ enum UserRole {
   manager
   accountant
   admin
+  // Member-portal login — distinct from the five staff roles above.
+  // requireStaff (middleware/auth.ts) blocks this role from every
+  // existing staff router; it only ever reaches portal.routes.ts,
+  // which scopes every query to this user's own linked Member via
+  // User.memberId. Never granted by self-signup — see User.memberId's
+  // comment.
+  member
 }
 
 enum UserStatus {
@@ -192,6 +199,12 @@ model User {
 
   membersCreated Member[] @relation("MemberCreatedBy")
 
+  // Only ever set for role=member, and only ever by staff — created via
+  // POST /api/members/:id/login (admin/manager), never through a public
+  // signup route. @unique keeps a Member linked to at most one login.
+  memberId String? @unique @map("member_id")
+  member   Member? @relation("MemberLogin", fields: [memberId], references: [id])
+
   @@map("users")
 }
 
@@ -218,6 +231,7 @@ model Member {
   shareCapitalAccount ShareCapitalAccount?
   loanAccounts        LoanAccount[]
   depositAccounts     DepositAccount[]
+  userAccount         User?                @relation("MemberLogin")
 
   @@map("members")
 }

@@ -1,7 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Layout } from "./components/Layout";
+import { PortalLayout } from "./components/PortalLayout";
 import { LoginPage } from "./pages/LoginPage";
+import { PortalPage } from "./pages/PortalPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { MembersPage } from "./pages/MembersPage";
 import { MemberDetailPage } from "./pages/MemberDetailPage";
@@ -23,11 +25,26 @@ import { LoanProductsSettingsPage } from "./pages/LoanProductsSettingsPage";
 import { DividendSettingsPage } from "./pages/DividendSettingsPage";
 import { LoanLimitSettingsPage } from "./pages/LoanLimitSettingsPage";
 
-function ProtectedArea() {
+// Staff and member logins are two entirely separate route trees, each
+// behind its own guard that redirects the wrong role away before its
+// layout (and therefore any staff page's component) ever renders — not
+// just a nav link that happens to hide itself. The server's requireStaff
+// gate (middleware/auth.ts) is the real enforcement; this is the client
+// side of "members never even see a staff page," not a substitute for it.
+function StaffArea() {
   const { user, loading } = useAuth();
   if (loading) return <div className="p-8 text-slate-500">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === "member") return <Navigate to="/portal" replace />;
   return <Layout />;
+}
+
+function MemberArea() {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="p-8 text-slate-500">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== "member") return <Navigate to="/" replace />;
+  return <PortalLayout />;
 }
 
 export default function App() {
@@ -36,7 +53,10 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route element={<ProtectedArea />}>
+          <Route element={<MemberArea />}>
+            <Route path="/portal" element={<PortalPage />} />
+          </Route>
+          <Route element={<StaffArea />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/members" element={<MembersPage />} />
             <Route path="/members/:id" element={<MemberDetailPage />} />

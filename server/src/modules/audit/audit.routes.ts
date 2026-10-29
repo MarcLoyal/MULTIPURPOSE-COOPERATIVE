@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth, requireStaff } from "../../middleware/auth";
 
 export const auditRouter = Router();
-auditRouter.use(requireAuth);
+auditRouter.use(requireAuth, requireStaff);
 
 const ACTION_PHRASES: Record<string, string> = {
   create: "created",

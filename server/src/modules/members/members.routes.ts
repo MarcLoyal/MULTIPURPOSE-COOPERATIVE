@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
-import { notFound } from "../../lib/httpError";
+import { badRequest, conflict, notFound } from "../../lib/httpError";
 
 export const membersRouter = Router();
-membersRouter.use(requireAuth);
+membersRouter.use(requireAuth, requireStaff);
 
 const createMemberSchema = z.object({
   memberNumber: z.string().min(1),
@@ -49,6 +50,9 @@ membersRouter.get("/:id", async (req, res) => {
     include: {
       shareCapitalAccount: true,
       loanAccounts: true,
+      // Never passwordHash — this is read by any staff role, not just
+      // the ones allowed to manage the login itself.
+      userAccount: { select: { id: true, email: true, status: true, createdAt: true } },
     },
   });
   if (!member) throw notFound("Member not found");
@@ -137,3 +141,96 @@ membersRouter.post("/:id/status", requireRole("admin", "manager"), async (req, r
 
   res.json(updated);
 });
+
+// ---------------------------------------------------------------------------
+// Member portal login (roadmap item 4) — staff creates/manages a member's
+// own login from their record. No public self-signup path exists anywhere
+// in this app; a member login only ever comes from here.
+// ---------------------------------------------------------------------------
+
+const createLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+membersRouter.post(
+  "/:id/login",
+  requireRole("admin", "manager"),
+  async (req, res) => {
+    const data = createLoginSchema.parse(req.body);
+    const member = await prisma.member.findUnique({ where: { id: req.params.id } });
+    if (!member) throw notFound("Member not found");
+
+    const existingLogin = await prisma.user.findUnique({ where: { memberId: member.id } });
+    if (existingLogin) throw conflict("This member already has a portal login");
+
+    const emailTaken = await prisma.user.findUnique({ where: { email: data.email } });
+    if (emailTaken) throw badRequest("That email is already in use by another login");
+
+    const passwordHash = await bcrypt.hash(data.password, 10);
+
+    const created = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name: member.fullName,
+          email: data.email,
+          passwordHash,
+          role: "member",
+          memberId: member.id,
+        },
+      });
+      await writeAuditLog(tx, {
+        entityType: "User",
+        entityId: user.id,
+        action: "create",
+        newValue: { email: user.email, role: user.role, memberId: user.memberId },
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+      return user;
+    });
+
+    res.status(201).json({ id: created.id, email: created.email, status: created.status, createdAt: created.createdAt });
+  }
+);
+
+const updateLoginSchema = z
+  .object({
+    status: z.enum(["active", "disabled"]).optional(),
+    password: z.string().min(8).optional(),
+  })
+  .refine((data) => data.status !== undefined || data.password !== undefined, {
+    message: "Provide status and/or password",
+  });
+
+membersRouter.patch(
+  "/:id/login",
+  requireRole("admin", "manager"),
+  async (req, res) => {
+    const data = updateLoginSchema.parse(req.body);
+    const member = await prisma.member.findUnique({ where: { id: req.params.id } });
+    if (!member) throw notFound("Member not found");
+
+    const existingLogin = await prisma.user.findUnique({ where: { memberId: member.id } });
+    if (!existingLogin) throw notFound("This member has no portal login");
+
+    const passwordHash = data.password ? await bcrypt.hash(data.password, 10) : undefined;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: existingLogin.id },
+        data: { status: data.status, passwordHash },
+      });
+      await writeAuditLog(tx, {
+        entityType: "User",
+        entityId: user.id,
+        action: "update",
+        previousValue: { status: existingLogin.status },
+        newValue: { status: user.status, passwordReset: passwordHash !== undefined },
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+      return user;
+    });
+
+    res.json({ id: updated.id, email: updated.email, status: updated.status, createdAt: updated.createdAt });
+  }
+);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { Member, MemberStatus } from "../lib/types";
@@ -7,7 +7,7 @@ import { ActivityLog } from "../components/ActivityLog";
 import { formatDate } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
-const TABS = ["Details", "Loans", "Activity Log"] as const;
+const TABS = ["Details", "Loans", "Portal Login", "Activity Log"] as const;
 const STATUS_OPTIONS: MemberStatus[] = ["active", "inactive", "resigned", "deceased", "terminated"];
 
 export function MemberDetailPage() {
@@ -16,6 +16,11 @@ export function MemberDetailPage() {
   const [member, setMember] = useState<Member | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]>("Details");
   const [error, setError] = useState<string | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
 
   function load() {
     if (!id) return;
@@ -35,9 +40,52 @@ export function MemberDetailPage() {
     }
   }
 
+  async function createLogin(e: FormEvent) {
+    e.preventDefault();
+    if (!id) return;
+    setLoginError(null);
+    setLoginNotice(null);
+    try {
+      await api.post(`/members/${id}/login`, { email: loginEmail, password: loginPassword });
+      setLoginEmail("");
+      setLoginPassword("");
+      setLoginNotice("Login created. Share the email and password with the member directly — there is no email delivery.");
+      load();
+    } catch (err) {
+      setLoginError(err instanceof ApiError ? err.message : "Failed to create login");
+    }
+  }
+
+  async function toggleLoginStatus(nextStatus: "active" | "disabled") {
+    if (!id) return;
+    setLoginError(null);
+    setLoginNotice(null);
+    try {
+      await api.patch(`/members/${id}/login`, { status: nextStatus });
+      load();
+    } catch (err) {
+      setLoginError(err instanceof ApiError ? err.message : "Failed to update login");
+    }
+  }
+
+  async function submitResetPassword(e: FormEvent) {
+    e.preventDefault();
+    if (!id) return;
+    setLoginError(null);
+    setLoginNotice(null);
+    try {
+      await api.patch(`/members/${id}/login`, { password: resetPassword });
+      setResetPassword("");
+      setLoginNotice("Password reset. Share the new password with the member directly.");
+    } catch (err) {
+      setLoginError(err instanceof ApiError ? err.message : "Failed to reset password");
+    }
+  }
+
   if (!member) return <p className="text-slate-500">Loading…</p>;
 
   const canChangeStatus = user && ["admin", "manager"].includes(user.role);
+  const canManageLogin = user && ["admin", "manager"].includes(user.role);
 
   return (
     <div>
@@ -156,6 +204,99 @@ export function MemberDetailPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === "Portal Login" && (
+        <div className="bg-white border border-slate-200 rounded-xl p-5 max-w-md space-y-4">
+          {loginNotice && <p className="text-sm text-emerald-600">{loginNotice}</p>}
+          {loginError && <p className="text-sm text-rose-600">{loginError}</p>}
+
+          {!member.userAccount ? (
+            <>
+              <p className="text-sm text-slate-500">
+                This member has no portal login yet. Create one to give them read-only access to their own account.
+              </p>
+              {canManageLogin ? (
+                <form onSubmit={createLogin} className="space-y-3">
+                  <input
+                    type="email"
+                    required
+                    placeholder="Email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="text"
+                    required
+                    minLength={8}
+                    placeholder="Temporary password (min 8 characters)"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800"
+                  >
+                    Create Login
+                  </button>
+                </form>
+              ) : (
+                <p className="text-xs text-slate-400">Only a manager or admin can create a portal login.</p>
+              )}
+            </>
+          ) : (
+            <>
+              <dl className="text-sm space-y-2">
+                <div>
+                  <dt className="text-slate-500">Email</dt>
+                  <dd>{member.userAccount.email}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Status</dt>
+                  <dd>
+                    <Badge value={member.userAccount.status} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Created</dt>
+                  <dd>{formatDate(member.userAccount.createdAt)}</dd>
+                </div>
+              </dl>
+
+              {canManageLogin && (
+                <div className="pt-4 border-t border-slate-100 space-y-4">
+                  <button
+                    onClick={() => toggleLoginStatus(member.userAccount!.status === "active" ? "disabled" : "active")}
+                    className="rounded-md border border-slate-300 text-sm px-4 py-2 hover:bg-slate-50"
+                  >
+                    {member.userAccount.status === "active" ? "Disable Login" : "Re-enable Login"}
+                  </button>
+
+                  <form onSubmit={submitResetPassword} className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">Reset password</label>
+                    <input
+                      type="text"
+                      required
+                      minLength={8}
+                      placeholder="New password (min 8 characters)"
+                      value={resetPassword}
+                      onChange={(e) => setResetPassword(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-slate-300 text-sm px-4 py-2 hover:bg-slate-50"
+                    >
+                      Reset Password
+                    </button>
+                  </form>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -12,6 +12,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/test/**/*.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -28,7 +29,9 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.7.4",
+    "@types/supertest": "^7.2.1",
     "prisma": "^5.20.0",
+    "supertest": "^7.3.1",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2"
   },

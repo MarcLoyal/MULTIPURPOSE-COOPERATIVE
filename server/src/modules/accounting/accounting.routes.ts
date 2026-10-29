@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { getIncomeStatement, getTrialBalance, postLedgerBatch } from "../../lib/ledger";
 import { writeAuditLog } from "../../lib/audit";
 import { ACCOUNTS } from "../../lib/accounts";
@@ -8,7 +8,7 @@ import { computeAging, computeLoanSchedule } from "../../lib/loanSchedule";
 import { classifyAllowanceBucket, round2 } from "../../lib/allowance";
 
 export const accountingRouter = Router();
-accountingRouter.use(requireAuth);
+accountingRouter.use(requireAuth, requireStaff);
 
 async function getAccountLabels(): Promise<Record<string, string>> {
   const accounts = await prisma.account.findMany({ select: { code: true, label: true } });

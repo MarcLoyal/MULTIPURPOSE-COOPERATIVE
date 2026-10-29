@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
@@ -14,9 +14,10 @@ import {
   round2,
 } from "../../lib/loanSchedule";
 import { receivableAccountForStatus, reclassifyLoanReceivable } from "../../lib/loanReceivable";
+import { computeLoanLimit } from "../../lib/loanLimit";
 
 export const loansRouter = Router();
-loansRouter.use(requireAuth);
+loansRouter.use(requireAuth, requireStaff);
 
 // ---------------------------------------------------------------------------
 // Loan products (board-approved — report gap-analysis item 2). Registered
@@ -95,60 +96,12 @@ loansRouter.patch(
   }
 );
 
-/**
- * Placeholder loanable-amount computation (report gap-analysis
- * follow-up — not yet board-approved): a member's loan limit is
- * modeled as their share capital balance times a settings-driven
- * multiplier, minus what they still owe on active/past-due loans
- * (principal + unpaid interest, same basis as aging.outstandingBalance
- * elsewhere in this file). Informational only — the client marks it
- * unconfirmed and never blocks an application on it.
- */
+// Placeholder loanable-amount computation — see lib/loanLimit.ts's doc
+// comment. Shared with the member portal's own GET /api/portal/loan-limit,
+// which calls computeLoanLimit directly rather than hitting this route
+// (portal.routes.ts is never a staff-gated router).
 loansRouter.get("/loan-limit/:memberId", async (req, res) => {
-  const member = await prisma.member.findUnique({ where: { id: req.params.memberId } });
-  if (!member) throw notFound("Member not found");
-
-  const [shareAccount, setting, loans] = await Promise.all([
-    prisma.shareCapitalAccount.findUnique({ where: { memberId: member.id } }),
-    prisma.loanLimitSetting.findFirst(),
-    prisma.loanAccount.findMany({
-      where: { memberId: member.id, status: { in: ["active", "past_due"] } },
-      include: { transactions: true },
-    }),
-  ]);
-
-  const shareCapitalBalance = Number(shareAccount?.balance ?? 0);
-  const shareCapitalMultiplier = Number(setting?.shareCapitalMultiplier ?? 0);
-
-  const outstandingLoanBalance = round2(
-    loans.reduce((sum, loan) => {
-      if (!loan.releaseDate) return sum;
-      const schedule = computeLoanSchedule(
-        loan.computationMethod,
-        Number(loan.principalAmount),
-        Number(loan.interestRate),
-        loan.termMonths,
-        loan.releaseDate
-      );
-      const totalRepaid = loan.transactions
-        .filter((t) => t.type === "repayment")
-        .reduce((s, t) => s + Number(t.amount), 0);
-      return sum + computeAging({ schedule, totalRepaid }).outstandingBalance;
-    }, 0)
-  );
-
-  const grossLimit = round2(shareCapitalBalance * shareCapitalMultiplier);
-  const loanableAmount = Math.max(0, round2(grossLimit - outstandingLoanBalance));
-
-  res.json({
-    memberId: member.id,
-    shareCapitalBalance,
-    shareCapitalMultiplier,
-    grossLimit,
-    outstandingLoanBalance,
-    loanableAmount,
-    isPlaceholder: true,
-  });
+  res.json(await computeLoanLimit(req.params.memberId));
 });
 
 const applySchema = z.object({
