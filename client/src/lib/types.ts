@@ -154,7 +154,15 @@ export type DashboardSummary = {
   activeLoans: number;
   pastDueLoans: number;
   totalShareCapital: number;
+  totalDeposits: number;
   cashPosition: number;
+  fiscalYear: {
+    id: string;
+    yearEndDate: string;
+    status: FiscalYearStatus;
+    hasStatutoryAllocation: boolean;
+    hasDividendDistribution: boolean;
+  } | null;
 };
 
 export type AllowanceRateSetting = {
