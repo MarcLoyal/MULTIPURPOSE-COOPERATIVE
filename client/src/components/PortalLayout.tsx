@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export function PortalLayout() {
@@ -13,6 +13,9 @@ export function PortalLayout() {
         </div>
         <div className="text-right text-sm">
           <p className="font-medium">{user?.name}</p>
+          <Link to="/portal/change-password" className="text-xs text-slate-300 underline hover:text-white mr-3">
+            Change Password
+          </Link>
           <button onClick={logout} className="text-xs text-slate-300 underline hover:text-white">
             Sign out
           </button>

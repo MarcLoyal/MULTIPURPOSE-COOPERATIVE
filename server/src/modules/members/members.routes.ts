@@ -177,6 +177,7 @@ membersRouter.post(
           passwordHash,
           role: "member",
           memberId: member.id,
+          mustChangePassword: true,
         },
       });
       await writeAuditLog(tx, {
@@ -218,7 +219,10 @@ membersRouter.patch(
     const updated = await prisma.$transaction(async (tx) => {
       const user = await tx.user.update({
         where: { id: existingLogin.id },
-        data: { status: data.status, passwordHash },
+        // A staff-set password is, by definition, one the member didn't
+        // choose — force them to replace it on next login, same as a
+        // freshly created login.
+        data: { status: data.status, passwordHash, mustChangePassword: passwordHash ? true : undefined },
       });
       await writeAuditLog(tx, {
         entityType: "User",

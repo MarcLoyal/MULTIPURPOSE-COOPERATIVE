@@ -6,6 +6,7 @@ export type CurrentUser = {
   email: string;
   role: UserRole;
   memberId?: string | null;
+  mustChangePassword: boolean;
 };
 
 export type MemberLoginStatus = "active" | "disabled";
