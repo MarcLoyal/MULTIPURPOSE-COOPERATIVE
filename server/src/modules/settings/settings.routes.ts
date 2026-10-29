@@ -69,3 +69,61 @@ settingsRouter.put(
     res.json(updated.sort((a, b) => a.sortOrder - b.sortOrder));
   }
 );
+
+// Dividend / patronage refund distribution rates — the split applied to
+// a closed fiscal year's unallocated remainder (see
+// fiscalYears.routes.ts's distribute handler). Seeded at 0%/0% by the
+// migration, same inert-default convention as allowance rates: posting
+// at 0% distributes nothing until the board sets real percentages.
+settingsRouter.get("/dividend-rates", async (_req, res) => {
+  const row = await prisma.dividendDistributionSetting.findFirst();
+  res.json(row);
+});
+
+const dividendRatesSchema = z
+  .object({
+    shareCapitalInterestPercent: z.coerce.number().min(0).max(100),
+    patronageRefundPercent: z.coerce.number().min(0).max(100),
+  })
+  .refine((data) => data.shareCapitalInterestPercent + data.patronageRefundPercent <= 100, {
+    message: "The two percentages together can't exceed 100%",
+  });
+
+settingsRouter.put(
+  "/dividend-rates",
+  requireRole("manager", "accountant", "admin"),
+  async (req, res) => {
+    const data = dividendRatesSchema.parse(req.body);
+    const existing = await prisma.dividendDistributionSetting.findFirst();
+    if (!existing) throw badRequest("Dividend distribution settings row is missing");
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.dividendDistributionSetting.update({
+        where: { id: existing.id },
+        data: { ...data, updatedById: req.user!.id },
+      });
+      if (
+        Number(existing.shareCapitalInterestPercent) !== data.shareCapitalInterestPercent ||
+        Number(existing.patronageRefundPercent) !== data.patronageRefundPercent
+      ) {
+        await writeAuditLog(tx, {
+          entityType: "DividendDistributionSetting",
+          entityId: result.id,
+          action: "update",
+          previousValue: {
+            shareCapitalInterestPercent: existing.shareCapitalInterestPercent,
+            patronageRefundPercent: existing.patronageRefundPercent,
+          },
+          newValue: {
+            shareCapitalInterestPercent: result.shareCapitalInterestPercent,
+            patronageRefundPercent: result.patronageRefundPercent,
+          },
+          performedBy: { id: req.user!.id, name: req.user!.name },
+        });
+      }
+      return result;
+    });
+
+    res.json(updated);
+  }
+);

@@ -26,6 +26,7 @@ export async function postLedgerBatch(
     cashTransactionId?: string;
     depositTransactionId?: string;
     statutoryFundAllocationId?: string;
+    dividendDistributionId?: string;
     entryDate?: Date;
   }
 ) {
@@ -64,6 +65,7 @@ export async function postLedgerBatch(
       cashTransactionId: params.cashTransactionId,
       depositTransactionId: params.depositTransactionId,
       statutoryFundAllocationId: params.statutoryFundAllocationId,
+      dividendDistributionId: params.dividendDistributionId,
       memo: params.memo,
       createdById: params.createdById,
     })),

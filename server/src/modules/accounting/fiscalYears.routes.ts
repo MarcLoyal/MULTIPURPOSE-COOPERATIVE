@@ -6,7 +6,7 @@ import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch, getIncomeStatement } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
-import { round2 } from "../../lib/loanSchedule";
+import { round2, computeLoanSchedule, splitRepayment } from "../../lib/loanSchedule";
 
 export const fiscalYearsRouter = Router();
 fiscalYearsRouter.use(requireAuth);
@@ -29,9 +29,58 @@ async function getPeriodStart(fiscalYear: { id: string; yearEndDate: Date }): Pr
   return start;
 }
 
+/**
+ * Each member's total interest paid on loan repayments landing in
+ * [periodStart, periodEnd] (same <= periodEnd convention getIncomeStatement
+ * uses). Walks each loan's repayment history in chronological order so
+ * splitRepayment sees the correct cumulative-repaid-before state for a
+ * repayment inside the period, even when earlier repayments (outside the
+ * period) already consumed part of the amortization schedule. This is
+ * the patronage-refund basis for a lending cooperative: the standard
+ * measure is volume of business done with the coop, which for loans is
+ * interest paid, not principal borrowed or disbursed.
+ */
+async function computeInterestPaidByMember(
+  periodStart: Date | undefined,
+  periodEnd: Date
+): Promise<Map<string, number>> {
+  const loans = await prisma.loanAccount.findMany({
+    where: { releaseDate: { not: null } },
+    include: { transactions: { where: { type: "repayment" }, orderBy: { createdAt: "asc" } } },
+  });
+
+  const interestByMember = new Map<string, number>();
+  for (const loan of loans) {
+    if (loan.transactions.length === 0) continue;
+    const schedule = computeLoanSchedule(
+      loan.computationMethod,
+      Number(loan.principalAmount),
+      Number(loan.interestRate),
+      loan.termMonths,
+      loan.releaseDate!
+    );
+    let totalRepaidBefore = 0;
+    let memberInterest = 0;
+    for (const txn of loan.transactions) {
+      const amount = Number(txn.amount);
+      const inPeriod = (!periodStart || txn.createdAt >= periodStart) && txn.createdAt <= periodEnd;
+      if (inPeriod) {
+        const { interestPortion } = splitRepayment(schedule, totalRepaidBefore, amount);
+        memberInterest = round2(memberInterest + interestPortion);
+      }
+      totalRepaidBefore = round2(totalRepaidBefore + amount);
+    }
+    if (memberInterest > 0) {
+      const current = interestByMember.get(loan.memberId) ?? 0;
+      interestByMember.set(loan.memberId, round2(current + memberInterest));
+    }
+  }
+  return interestByMember;
+}
+
 fiscalYearsRouter.get("/", async (_req, res) => {
   const fiscalYears = await prisma.fiscalYear.findMany({
-    include: { statutoryFundAllocation: true },
+    include: { statutoryFundAllocation: true, dividendDistribution: true },
     orderBy: { yearEndDate: "desc" },
   });
   res.json(fiscalYears);
@@ -40,7 +89,7 @@ fiscalYearsRouter.get("/", async (_req, res) => {
 fiscalYearsRouter.get("/:id", async (req, res) => {
   const fiscalYear = await prisma.fiscalYear.findUnique({
     where: { id: req.params.id },
-    include: { statutoryFundAllocation: true },
+    include: { statutoryFundAllocation: true, dividendDistribution: true },
   });
   if (!fiscalYear) throw notFound("Fiscal year not found");
 
@@ -224,6 +273,192 @@ fiscalYearsRouter.post(
       communityDevAmount,
       optionalAmount,
       unallocatedRemainder: round2(statement.netSurplus - allocatedTotal),
+    });
+  }
+);
+
+/**
+ * Distributes interest on share capital + patronage refund from a
+ * closed fiscal year's unallocated remainder, using the CURRENT
+ * DividendDistributionSetting percentages — not a value in the request
+ * body, same convention as the allowance report (change the setting,
+ * then re-run the action). At most one distribution per fiscal year.
+ *
+ * Both components are credited to members' share capital
+ * (ShareCapitalTransaction type "dividend", posted directly — the
+ * distribute action itself is the authorization, same as how closing a
+ * fiscal year needs no separate approval step) rather than paid out in
+ * cash. That's a documented simplification: many cooperatives do
+ * exactly this (compulsory reinvestment of dividends/refunds into
+ * share capital), but a cash-payout alternative would need its own
+ * workflow — reusing the existing share-capital withdrawal flow is the
+ * natural next step if the bylaws require it.
+ */
+fiscalYearsRouter.post(
+  "/:id/distribute",
+  requireRole("manager", "accountant", "admin"),
+  async (req, res) => {
+    const fiscalYear = await prisma.fiscalYear.findUnique({
+      where: { id: req.params.id },
+      include: { statutoryFundAllocation: true, dividendDistribution: true },
+    });
+    if (!fiscalYear) throw notFound("Fiscal year not found");
+    if (fiscalYear.status !== "closed") throw conflict("Fiscal year must be closed before distributing");
+    if (!fiscalYear.statutoryFundAllocation) {
+      throw conflict("This fiscal year closed with no net surplus — nothing to distribute");
+    }
+    if (fiscalYear.dividendDistribution) throw conflict("This fiscal year has already been distributed");
+
+    const setting = await prisma.dividendDistributionSetting.findFirst();
+    if (!setting) throw badRequest("Dividend distribution settings row is missing");
+    const shareCapitalInterestPercent = Number(setting.shareCapitalInterestPercent);
+    const patronageRefundPercent = Number(setting.patronageRefundPercent);
+
+    const alloc = fiscalYear.statutoryFundAllocation;
+    const netSurplus = Number(alloc.netSurplus);
+    // Reproduce the exact per-fund rounding the close handler used, so
+    // this matches what was actually posted rather than a fresh
+    // recomputation that could drift by a cent.
+    const reserveAmount = round2((netSurplus * Number(alloc.reserveFundPercent)) / 100);
+    const cetfAmount = round2((netSurplus * Number(alloc.cetfPercent)) / 100);
+    const communityDevAmount = round2((netSurplus * Number(alloc.communityDevFundPercent)) / 100);
+    const optionalAmount = round2((netSurplus * Number(alloc.optionalFundPercent)) / 100);
+    const allocatedTotal = round2(reserveAmount + cetfAmount + communityDevAmount + optionalAmount);
+    const unallocatedRemainder = round2(netSurplus - allocatedTotal);
+
+    const shareCapitalInterestAmount = round2((unallocatedRemainder * shareCapitalInterestPercent) / 100);
+    const patronageRefundAmount = round2((unallocatedRemainder * patronageRefundPercent) / 100);
+    const requestedTotal = round2(shareCapitalInterestAmount + patronageRefundAmount);
+
+    if (requestedTotal > unallocatedRemainder) {
+      throw badRequest(
+        `The current dividend settings would distribute ${requestedTotal.toFixed(2)}, more than the unallocated remainder of ${unallocatedRemainder.toFixed(2)}.`
+      );
+    }
+    if (requestedTotal <= 0) {
+      return res.json({
+        distributed: false,
+        unallocatedRemainder,
+        message: "Dividend distribution settings are at 0% — nothing to distribute.",
+      });
+    }
+
+    const periodStart = await getPeriodStart(fiscalYear);
+
+    const shareAccounts = await prisma.shareCapitalAccount.findMany({ where: { balance: { gt: 0 } } });
+    const totalShareCapital = shareAccounts.reduce((sum, a) => sum + Number(a.balance), 0);
+
+    const interestByMember =
+      patronageRefundAmount > 0 ? await computeInterestPaidByMember(periodStart, fiscalYear.yearEndDate) : new Map<string, number>();
+    const totalInterestPaid = Array.from(interestByMember.values()).reduce((sum, v) => sum + v, 0);
+
+    // Track each category's actual post-rounding total separately from
+    // the pre-split target (shareCapitalInterestAmount/patronageRefundAmount
+    // above) — splitting a dollar amount across N members and rounding
+    // each member's share to the cent can land a cent above or below the
+    // target. The DividendDistribution record and the ledger must both
+    // reflect what was actually summed and credited, not the
+    // before-rounding target, or the two would disagree by a cent.
+    const perMember = new Map<string, number>();
+    let actualShareCapitalInterestAmount = 0;
+    if (totalShareCapital > 0 && shareCapitalInterestAmount > 0) {
+      for (const acct of shareAccounts) {
+        const share = round2((shareCapitalInterestAmount * Number(acct.balance)) / totalShareCapital);
+        if (share > 0) {
+          perMember.set(acct.memberId, round2((perMember.get(acct.memberId) ?? 0) + share));
+          actualShareCapitalInterestAmount = round2(actualShareCapitalInterestAmount + share);
+        }
+      }
+    }
+    let actualPatronageRefundAmount = 0;
+    if (totalInterestPaid > 0 && patronageRefundAmount > 0) {
+      for (const [memberId, interest] of interestByMember) {
+        const share = round2((patronageRefundAmount * interest) / totalInterestPaid);
+        if (share > 0) {
+          perMember.set(memberId, round2((perMember.get(memberId) ?? 0) + share));
+          actualPatronageRefundAmount = round2(actualPatronageRefundAmount + share);
+        }
+      }
+    }
+
+    const actualTotal = round2(actualShareCapitalInterestAmount + actualPatronageRefundAmount);
+
+    if (actualTotal <= 0) {
+      return res.json({
+        distributed: false,
+        unallocatedRemainder,
+        message:
+          totalShareCapital === 0 && totalInterestPaid === 0
+            ? "No members hold share capital and no loan interest was paid this period — nothing to distribute."
+            : "Computed distribution is zero — nothing to distribute.",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const distribution = await tx.dividendDistribution.create({
+        data: {
+          fiscalYearId: fiscalYear.id,
+          shareCapitalInterestPercent,
+          patronageRefundPercent,
+          shareCapitalInterestAmount: actualShareCapitalInterestAmount,
+          patronageRefundAmount: actualPatronageRefundAmount,
+          memberCount: perMember.size,
+        },
+      });
+
+      await postLedgerBatch(tx, {
+        sourceType: "dividend_distribution",
+        dividendDistributionId: distribution.id,
+        createdById: req.user!.id,
+        memo: `Dividend / patronage refund distribution — fiscal year ${fiscalYear.yearEndDate.toISOString().slice(0, 10)}`,
+        lines: [
+          { accountCode: ACCOUNTS.UNDIVIDED_NET_SURPLUS, debit: actualTotal },
+          { accountCode: ACCOUNTS.MEMBERS_SHARE_CAPITAL, credit: actualTotal },
+        ],
+      });
+
+      for (const [memberId, amount] of perMember) {
+        const account = await tx.shareCapitalAccount.findUnique({ where: { memberId } });
+        if (!account) continue;
+        await tx.shareCapitalAccount.update({ where: { id: account.id }, data: { balance: { increment: amount } } });
+        const txn = await tx.shareCapitalTransaction.create({
+          data: {
+            shareCapitalAccountId: account.id,
+            type: "dividend",
+            amount,
+            status: "posted",
+            createdById: req.user!.id,
+            approvedById: req.user!.id,
+            approvedAt: new Date(),
+          },
+        });
+        await writeAuditLog(tx, {
+          entityType: "ShareCapitalTransaction",
+          entityId: txn.id,
+          action: "create",
+          newValue: txn,
+          performedBy: { id: req.user!.id, name: req.user!.name },
+        });
+      }
+
+      await writeAuditLog(tx, {
+        entityType: "DividendDistribution",
+        entityId: distribution.id,
+        action: "create",
+        newValue: { ...distribution, memberCount: perMember.size },
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+
+      return distribution;
+    });
+
+    res.json({
+      distributed: true,
+      distribution: result,
+      shareCapitalInterestAmount: actualShareCapitalInterestAmount,
+      patronageRefundAmount: actualPatronageRefundAmount,
+      memberCount: perMember.size,
+      unallocatedRemainder: round2(unallocatedRemainder - actualTotal),
     });
   }
 );
