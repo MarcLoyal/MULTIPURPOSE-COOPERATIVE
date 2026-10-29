@@ -77,6 +77,18 @@ export type Installment = {
   totalDue: number;
 };
 
+export type LoanProduct = {
+  id: string;
+  name: string;
+  description?: string | null;
+  interestRate: string;
+  ratePeriod: "monthly" | "annual";
+  computationMethod: "diminishing_balance" | "flat";
+  amortizationStyle: "equal_payment" | "equal_principal";
+  isActive: boolean;
+  createdAt: string;
+};
+
 export type LoanAccount = {
   id: string;
   memberId: string;

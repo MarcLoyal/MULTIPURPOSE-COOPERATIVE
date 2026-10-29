@@ -19,6 +19,7 @@ import { DepositAccountDetailPage } from "./pages/DepositAccountDetailPage";
 import { DepositProductsSettingsPage } from "./pages/DepositProductsSettingsPage";
 import { FiscalYearsPage } from "./pages/FiscalYearsPage";
 import { FiscalYearDetailPage } from "./pages/FiscalYearDetailPage";
+import { LoanProductsSettingsPage } from "./pages/LoanProductsSettingsPage";
 
 function ProtectedArea() {
   const { user, loading } = useAuth();
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="/allowance-report" element={<AllowanceReportPage />} />
             <Route path="/settings/allowance-rates" element={<AllowanceSettingsPage />} />
             <Route path="/settings/deposit-products" element={<DepositProductsSettingsPage />} />
+            <Route path="/settings/loan-products" element={<LoanProductsSettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
