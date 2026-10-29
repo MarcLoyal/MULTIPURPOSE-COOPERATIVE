@@ -97,7 +97,12 @@ export function MemberDetailPage() {
           <h1 className="text-xl font-semibold text-slate-900">{member.fullName}</h1>
           <p className="text-sm text-slate-500">{member.memberNumber}</p>
         </div>
-        <Badge value={member.status} />
+        <div className="flex items-center gap-3">
+          <Link to={`/members/${member.id}/statement`} target="_blank" className="text-sm text-slate-600 hover:underline">
+            Statement of Account
+          </Link>
+          <Badge value={member.status} />
+        </div>
       </div>
 
       <div className="border-b border-slate-200 mb-4">

@@ -27,6 +27,7 @@ import { DividendSettingsPage } from "./pages/DividendSettingsPage";
 import { LoanLimitSettingsPage } from "./pages/LoanLimitSettingsPage";
 import { ReceiptSettingsPage } from "./pages/ReceiptSettingsPage";
 import { ReceiptPrintPage } from "./pages/ReceiptPrintPage";
+import { MemberStatementPage } from "./pages/MemberStatementPage";
 
 // Staff and member logins are two entirely separate route trees, each
 // behind its own guard that redirects the wrong role away before its
@@ -63,11 +64,13 @@ export default function App() {
           <Route element={<MemberArea />}>
             <Route path="/portal" element={<PortalPage />} />
             <Route path="/portal/change-password" element={<ChangePasswordPage />} />
+            <Route path="/portal/statement" element={<MemberStatementPage />} />
           </Route>
           <Route element={<StaffArea />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/members" element={<MembersPage />} />
             <Route path="/members/:id" element={<MemberDetailPage />} />
+            <Route path="/members/:id/statement" element={<MemberStatementPage />} />
             <Route path="/share-capital" element={<ShareCapitalPage />} />
             <Route path="/loans" element={<LoansPage />} />
             <Route path="/loans/:id" element={<LoanDetailPage />} />

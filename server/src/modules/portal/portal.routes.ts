@@ -3,6 +3,7 @@ import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole } from "../../middleware/auth";
 import { forbidden, notFound } from "../../lib/httpError";
 import { computeLoanLimit } from "../../lib/loanLimit";
+import { buildMemberStatement } from "../../lib/memberStatement";
 import { getIncomeStatement } from "../../lib/ledger";
 import { round2 } from "../../lib/loanSchedule";
 import {
@@ -58,6 +59,11 @@ portalRouter.get("/dividend-history", async (req, res) => {
     orderBy: { createdAt: "desc" },
   });
   res.json(txns);
+});
+
+// Printable/downloadable statement of account — see lib/memberStatement.ts.
+portalRouter.get("/statement", async (req, res) => {
+  res.json(await buildMemberStatement(currentMemberId(req)));
 });
 
 const STATUTORY_MINIMUM_PERCENT = {
