@@ -152,6 +152,7 @@ enum LedgerSourceType {
   manual
   deposit
   fiscal_year_close
+  dividend_distribution
 }
 
 enum AccountElement {
@@ -384,6 +385,8 @@ model LedgerEntry {
   depositTransaction        DepositTransaction?      @relation(fields: [depositTransactionId], references: [id])
   statutoryFundAllocationId String?                  @map("statutory_fund_allocation_id")
   statutoryFundAllocation   StatutoryFundAllocation? @relation(fields: [statutoryFundAllocationId], references: [id])
+  dividendDistributionId    String?                  @map("dividend_distribution_id")
+  dividendDistribution      DividendDistribution?    @relation(fields: [dividendDistributionId], references: [id])
 
   batchId    String   @map("batch_id")
   memo       String?
@@ -484,6 +487,7 @@ model FiscalYear {
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
   statutoryFundAllocation StatutoryFundAllocation?
+  dividendDistribution    DividendDistribution?
 
   @@map("fiscal_years")
 }
@@ -513,6 +517,48 @@ model StatutoryFundAllocation {
   ledgerEntries LedgerEntry[]
 
   @@map("statutory_fund_allocations")
+}
+
+// Interest on share capital + patronage refund, distributed from a
+// closed fiscal year's unallocated remainder (what's left in 30600
+// after StatutoryFundAllocation's four funds) — report gap-analysis
+// item 4's other half. The split between the two is bylaws-set, never
+// hard-coded, seeded at 0%/0% (inert, safe default) same as
+// AllowanceRateSetting below, until the board sets real percentages.
+model DividendDistributionSetting {
+  id                          String   @id @default(uuid())
+  shareCapitalInterestPercent Decimal  @default(0) @db.Decimal(5, 2) @map("share_capital_interest_percent")
+  patronageRefundPercent      Decimal  @default(0) @db.Decimal(5, 2) @map("patronage_refund_percent")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+  updatedById                 String?  @map("updated_by")
+
+  @@map("dividend_distribution_settings")
+}
+
+// One per fiscal year (at most) — records what was actually declared
+// and posted, snapshotting the rate-setting percentages used at the
+// time, same reasoning as StatutoryFundAllocation.netSurplus (a later
+// rate-setting change must never retroactively reinterpret a past
+// distribution). Both components are credited to members' share
+// capital (ShareCapitalTransaction type "dividend") rather than paid
+// out in cash — see modules/accounting/fiscalYears.routes.ts's distribute
+// handler for the per-member basis (share capital balance / interest
+// paid on loans during the period) and why cash payout is a documented
+// simplification, not modeled here.
+model DividendDistribution {
+  id                          String     @id @default(uuid())
+  fiscalYearId                String     @unique @map("fiscal_year_id")
+  fiscalYear                  FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  shareCapitalInterestPercent Decimal    @db.Decimal(5, 2) @map("share_capital_interest_percent")
+  patronageRefundPercent      Decimal    @db.Decimal(5, 2) @map("patronage_refund_percent")
+  shareCapitalInterestAmount  Decimal    @db.Decimal(18, 2) @map("share_capital_interest_amount")
+  patronageRefundAmount       Decimal    @db.Decimal(18, 2) @map("patronage_refund_amount")
+  memberCount                 Int        @map("member_count")
+  createdAt                   DateTime   @default(now()) @map("created_at")
+
+  ledgerEntries LedgerEntry[]
+
+  @@map("dividend_distributions")
 }
 
 // Phase 1: the allowance for probable losses is booked on Portfolio at

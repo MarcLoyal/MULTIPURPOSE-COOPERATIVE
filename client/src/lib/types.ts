@@ -212,12 +212,31 @@ export type StatutoryFundAllocation = {
   createdAt: string;
 };
 
+export type DividendDistribution = {
+  id: string;
+  fiscalYearId: string;
+  shareCapitalInterestPercent: string;
+  patronageRefundPercent: string;
+  shareCapitalInterestAmount: string;
+  patronageRefundAmount: string;
+  memberCount: number;
+  createdAt: string;
+};
+
+export type DividendDistributionSetting = {
+  id: string;
+  shareCapitalInterestPercent: string;
+  patronageRefundPercent: string;
+  updatedAt: string;
+};
+
 export type FiscalYear = {
   id: string;
   yearEndDate: string;
   status: FiscalYearStatus;
   createdAt: string;
   statutoryFundAllocation?: StatutoryFundAllocation | null;
+  dividendDistribution?: DividendDistribution | null;
   periodStart?: string | null;
 };
 
@@ -232,6 +251,16 @@ export type FiscalYearCloseResult = {
   communityDevAmount?: number;
   optionalAmount?: number;
   unallocatedRemainder?: number;
+};
+
+export type DividendDistributeResult = {
+  distributed: boolean;
+  message?: string;
+  distribution?: DividendDistribution;
+  shareCapitalInterestAmount?: number;
+  patronageRefundAmount?: number;
+  memberCount?: number;
+  unallocatedRemainder: number;
 };
 
 export type IncomeStatementRow = {

@@ -26,6 +26,7 @@ export function Layout() {
         { to: "/settings/allowance-rates", label: "Allowance Settings" },
         { to: "/settings/deposit-products", label: "Deposit Products" },
         { to: "/settings/loan-products", label: "Loan Products" },
+        { to: "/settings/dividend-rates", label: "Dividend Rates" },
       ]
     : NAV_ITEMS;
 
