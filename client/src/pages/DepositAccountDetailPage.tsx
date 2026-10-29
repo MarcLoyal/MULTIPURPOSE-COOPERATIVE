@@ -15,6 +15,7 @@ export function DepositAccountDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
+  const [depositOrNumber, setDepositOrNumber] = useState("");
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
 
   function load() {
@@ -30,9 +31,17 @@ export function DepositAccountDetailPage() {
     setError(null);
     setNotice(null);
     try {
-      await api.post(`/deposits/accounts/${id}/transactions`, { type, amount: Number(amount) });
-      if (type === "deposit") setDepositAmount("");
-      else setWithdrawalAmount("");
+      await api.post(`/deposits/accounts/${id}/transactions`, {
+        type,
+        amount: Number(amount),
+        officialReceiptNumber: type === "deposit" ? depositOrNumber || undefined : undefined,
+      });
+      if (type === "deposit") {
+        setDepositAmount("");
+        setDepositOrNumber("");
+      } else {
+        setWithdrawalAmount("");
+      }
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : `Failed to record ${type}`);
@@ -120,6 +129,12 @@ export function DepositAccountDetailPage() {
                   onChange={(e) => setDepositAmount(e.target.value)}
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm w-40"
                 />
+                <input
+                  placeholder="OR # (optional)"
+                  value={depositOrNumber}
+                  onChange={(e) => setDepositOrNumber(e.target.value)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm w-40"
+                />
                 <button className="rounded-md bg-emerald-600 text-white text-sm px-4 py-2 hover:bg-emerald-700">
                   Deposit
                 </button>
@@ -170,12 +185,13 @@ export function DepositAccountDetailPage() {
               <th className="px-4 py-2">Amount</th>
               <th className="px-4 py-2">Balance After</th>
               <th className="px-4 py-2">Date</th>
+              <th className="px-4 py-2">Receipt</th>
             </tr>
           </thead>
           <tbody>
             {!account.transactions || account.transactions.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-500" colSpan={4}>
+                <td className="px-4 py-4 text-slate-500" colSpan={5}>
                   No transactions yet.
                 </td>
               </tr>
@@ -186,6 +202,19 @@ export function DepositAccountDetailPage() {
                   <td className="px-4 py-2">{formatCurrency(t.amount)}</td>
                   <td className="px-4 py-2">{formatCurrency(t.balanceAfter)}</td>
                   <td className="px-4 py-2">{formatDateTime(t.createdAt)}</td>
+                  <td className="px-4 py-2">
+                    {t.officialReceiptNumber ? (
+                      <Link
+                        to={`/receipts/deposit/${t.id}`}
+                        target="_blank"
+                        className="text-slate-900 text-xs font-medium hover:underline"
+                      >
+                        OR#{t.officialReceiptNumber}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
               ))
             )}

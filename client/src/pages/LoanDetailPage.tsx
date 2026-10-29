@@ -18,6 +18,7 @@ export function LoanDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [repaymentAmount, setRepaymentAmount] = useState("");
+  const [repaymentOrNumber, setRepaymentOrNumber] = useState("");
 
   function load() {
     if (!id) return;
@@ -50,8 +51,12 @@ export function LoanDetailPage() {
 
   async function submitRepayment(e: FormEvent) {
     e.preventDefault();
-    await act("repayments", { amount: Number(repaymentAmount) });
+    await act("repayments", {
+      amount: Number(repaymentAmount),
+      officialReceiptNumber: repaymentOrNumber || undefined,
+    });
     setRepaymentAmount("");
+    setRepaymentOrNumber("");
   }
 
   if (!loan) return <p className="text-slate-500">Loading…</p>;
@@ -172,6 +177,15 @@ export function LoanDetailPage() {
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">OR number (optional)</label>
+                <input
+                  placeholder="Official receipt #"
+                  value={repaymentOrNumber}
+                  onChange={(e) => setRepaymentOrNumber(e.target.value)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
               <button className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
                 Submit Repayment
               </button>
@@ -186,12 +200,13 @@ export function LoanDetailPage() {
                   <th className="px-4 py-2">Amount</th>
                   <th className="px-4 py-2">Balance After</th>
                   <th className="px-4 py-2">Date</th>
+                  <th className="px-4 py-2">Receipt</th>
                 </tr>
               </thead>
               <tbody>
                 {(loan.transactions ?? []).length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-slate-500" colSpan={4}>
+                    <td className="px-4 py-4 text-slate-500" colSpan={5}>
                       No transactions yet.
                     </td>
                   </tr>
@@ -202,6 +217,19 @@ export function LoanDetailPage() {
                       <td className="px-4 py-2">{formatCurrency(t.amount)}</td>
                       <td className="px-4 py-2">{formatCurrency(t.balanceAfter)}</td>
                       <td className="px-4 py-2">{formatDate(t.createdAt)}</td>
+                      <td className="px-4 py-2">
+                        {t.officialReceiptNumber ? (
+                          <Link
+                            to={`/receipts/loan/${t.id}`}
+                            target="_blank"
+                            className="text-slate-900 text-xs font-medium hover:underline"
+                          >
+                            OR#{t.officialReceiptNumber}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}

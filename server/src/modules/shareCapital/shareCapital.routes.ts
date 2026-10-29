@@ -6,6 +6,7 @@ import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
+import { assertOfficialReceiptNumberAvailable } from "../../lib/officialReceipt";
 
 export const shareCapitalRouter = Router();
 shareCapitalRouter.use(requireAuth, requireStaff);
@@ -20,6 +21,15 @@ const createTxnSchema = z.object({
 // reduce it. Exported so fiscalYears.routes.ts can replay the same
 // balance-history logic when computing average share months.
 export const INFLOW_TYPES = new Set(["subscription", "additional_purchase", "dividend"]);
+
+// Of the inflow types, only these two are a member actually paying in
+// cash — "dividend" is a system-posted credit with no payment to
+// receipt. The only types an official receipt number can attach to.
+const PAID_INFLOW_TYPES = new Set(["subscription", "additional_purchase"]);
+
+const approveSchema = z.object({
+  officialReceiptNumber: z.string().min(1).optional(),
+});
 
 async function recomputeBalance(tx: any, accountId: string) {
   const posted = await tx.shareCapitalTransaction.findMany({
@@ -98,12 +108,19 @@ shareCapitalRouter.post(
   "/transactions/:id/approve",
   requireRole("manager", "admin"),
   async (req, res) => {
+    const { officialReceiptNumber } = approveSchema.parse(req.body ?? {});
     const existing = await prisma.shareCapitalTransaction.findUnique({
       where: { id: req.params.id },
       include: { account: true },
     });
     if (!existing) throw notFound("Share capital transaction not found");
     if (existing.status !== "pending") throw conflict("Only pending transactions can be approved");
+    if (officialReceiptNumber) {
+      if (!PAID_INFLOW_TYPES.has(existing.type)) {
+        throw badRequest("An official receipt number only applies to a subscription or additional purchase");
+      }
+      await assertOfficialReceiptNumberAvailable(officialReceiptNumber);
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const approved = await tx.shareCapitalTransaction.update({
@@ -139,7 +156,7 @@ shareCapitalRouter.post(
 
       const posted = await tx.shareCapitalTransaction.update({
         where: { id: approved.id },
-        data: { status: "posted" },
+        data: { status: "posted", officialReceiptNumber },
       });
       await writeAuditLog(tx, {
         entityType: "ShareCapitalTransaction",
@@ -157,6 +174,29 @@ shareCapitalRouter.post(
     res.json(result);
   }
 );
+
+// Printable receipt for a subscription/additional purchase — only for
+// one with an OR# recorded (set at approval time, above).
+shareCapitalRouter.get("/transactions/:id/receipt", async (req, res) => {
+  const txn = await prisma.shareCapitalTransaction.findUnique({
+    where: { id: req.params.id },
+    include: { account: { include: { member: true } } },
+  });
+  if (!txn || !PAID_INFLOW_TYPES.has(txn.type) || !txn.officialReceiptNumber) {
+    throw notFound("No receipt issued for this transaction");
+  }
+  const createdBy = await prisma.user.findUnique({ where: { id: txn.createdById } });
+
+  res.json({
+    officialReceiptNumber: txn.officialReceiptNumber,
+    particulars: `Share Capital — ${txn.type === "subscription" ? "Subscription" : "Additional Purchase"}`,
+    amount: Number(txn.amount),
+    date: txn.approvedAt ?? txn.createdAt,
+    memberName: txn.account.member.fullName,
+    memberNumber: txn.account.member.memberNumber,
+    receivedByName: createdBy?.name ?? "—",
+  });
+});
 
 shareCapitalRouter.post(
   "/transactions/:id/reject",

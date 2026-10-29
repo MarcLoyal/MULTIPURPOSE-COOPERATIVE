@@ -262,6 +262,11 @@ model ShareCapitalTransaction {
   type                  ShareCapitalTxnType
   amount                Decimal                @db.Decimal(18, 2)
   status                ShareCapitalTxnStatus  @default(pending)
+  // Set only when approving a subscription/additional_purchase (the
+  // inflow types a member actually pays for) — see
+  // lib/officialReceipt.ts's doc comment on LoanTransaction for why
+  // it's optional and cross-table-unique rather than a required column.
+  officialReceiptNumber String?                @unique @map("official_receipt_number")
   createdById           String                 @map("created_by")
   approvedById          String?                @map("approved_by")
   createdAt             DateTime               @default(now()) @map("created_at")
@@ -332,6 +337,14 @@ model LoanTransaction {
   type          LoanTxnType
   amount        Decimal     @db.Decimal(18, 2)
   balanceAfter  Decimal     @db.Decimal(18, 2) @map("balance_after")
+  // Set only for type=repayment — the physical OR booklet number the
+  // cashier wrote when the member paid. Optional: historical repayments
+  // predate this field, and a repayment can still be recorded without
+  // one. Uniqueness is enforced per-column here, plus a cross-table
+  // check in lib/officialReceipt.ts against every other transaction
+  // type's column (OR booklets are one shared numbered sequence in
+  // practice, not per transaction type).
+  officialReceiptNumber String? @unique @map("official_receipt_number")
   createdById   String      @map("created_by")
   createdAt     DateTime    @default(now()) @map("created_at")
 
@@ -484,6 +497,10 @@ model DepositTransaction {
   type             DepositTxnType
   amount           Decimal        @db.Decimal(18, 2)
   balanceAfter     Decimal        @db.Decimal(18, 2) @map("balance_after")
+  // Set only for type=deposit — see lib/officialReceipt.ts's doc
+  // comment on LoanTransaction for why it's optional and
+  // cross-table-unique rather than a required column.
+  officialReceiptNumber String?   @unique @map("official_receipt_number")
   createdById      String         @map("created_by")
   createdAt        DateTime       @default(now()) @map("created_at")
 

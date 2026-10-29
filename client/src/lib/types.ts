@@ -61,6 +61,7 @@ export type ShareCapitalTransaction = {
   type: ShareCapitalTxnType;
   amount: string;
   status: ShareCapitalTxnStatus;
+  officialReceiptNumber?: string | null;
   createdById: string;
   approvedById?: string | null;
   createdAt: string;
@@ -85,6 +86,7 @@ export type LoanTransaction = {
   type: "release" | "repayment" | "penalty" | "restructure" | "reclassify";
   amount: string;
   balanceAfter: string;
+  officialReceiptNumber?: string | null;
   createdById: string;
   createdAt: string;
 };
@@ -360,8 +362,19 @@ export type DepositTransaction = {
   type: DepositTxnType;
   amount: string;
   balanceAfter: string;
+  officialReceiptNumber?: string | null;
   createdById: string;
   createdAt: string;
+};
+
+export type ReceiptData = {
+  officialReceiptNumber: string;
+  particulars: string;
+  amount: number;
+  date: string;
+  memberName: string;
+  memberNumber: string;
+  receivedByName: string;
 };
 
 export type DepositAccount = {
