@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { LedgerSourceType, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
+import { ACCOUNTS } from "./accounts";
 
 export type LedgerLine = {
   accountCode: string;
@@ -335,4 +336,197 @@ export async function getStatementOfChangesInEquity(periodStart: Date | undefine
 
 function round2ForLedger(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// "Cash and cash equivalents" for the Statement of Cash Flows — the three
+// accounts the app actually posts to as cash (see lib/accounts.ts). Not
+// included: Advances to Officers/Employees/Members (11360) — a
+// receivable, not cash; and Revolving Fund / E-wallet Fund, which exist
+// in the full chart but nothing in this app posts to yet.
+const CASH_AND_EQUIVALENTS = new Set<string>([
+  ACCOUNTS.CASH_ON_HAND,
+  ACCOUNTS.CASH_IN_BANK,
+  ACCOUNTS.PETTY_CASH_FUND,
+]);
+
+type CashFlowCategory = "operating" | "investing" | "financing";
+
+// Every account this app's posting code pairs with a cash line, by cash
+// direction — i.e. "when a batch moves cash and the OTHER leg touches
+// this account, what does that cash movement mean." Built by reading
+// every postLedgerBatch call site (cash, loans, deposits, share capital
+// routes) rather than inferred from labels, so it's exhaustive as of
+// this app's actual code, not just the chart of accounts. A lending/
+// deposit-taking cooperative's core business is lending and deposits, so
+// both are classified as OPERATING (the standard treatment for a
+// financial institution), not investing. There is currently no account
+// in this app's posting code for investing activities (no PP&E/
+// investment purchases are posted anywhere) — the Investing section will
+// always show zero until one exists.
+const CASH_LINE_CLASSIFICATION: Record<
+  string,
+  { inflow: { category: CashFlowCategory; label: string }; outflow: { category: CashFlowCategory; label: string } }
+> = {
+  [ACCOUNTS.LOANS_RECEIVABLE_CURRENT]: {
+    inflow: { category: "operating", label: "Loan principal collected" },
+    outflow: { category: "operating", label: "Loans released to members" },
+  },
+  [ACCOUNTS.LOANS_RECEIVABLE_PAST_DUE]: {
+    inflow: { category: "operating", label: "Loan principal collected" },
+    outflow: { category: "operating", label: "Loans released to members" },
+  },
+  [ACCOUNTS.LOANS_RECEIVABLE_RESTRUCTURED]: {
+    inflow: { category: "operating", label: "Loan principal collected" },
+    outflow: { category: "operating", label: "Loans released to members" },
+  },
+  [ACCOUNTS.INTEREST_INCOME]: {
+    inflow: { category: "operating", label: "Loan interest collected" },
+    outflow: { category: "operating", label: "Loan interest collected" },
+  },
+  [ACCOUNTS.PENALTY_INCOME]: {
+    inflow: { category: "operating", label: "Penalties collected" },
+    outflow: { category: "operating", label: "Penalties collected" },
+  },
+  [ACCOUNTS.SAVINGS_DEPOSITS]: {
+    inflow: { category: "operating", label: "Deposits received from members" },
+    outflow: { category: "operating", label: "Withdrawals paid to depositors" },
+  },
+  [ACCOUNTS.TIME_DEPOSITS]: {
+    inflow: { category: "operating", label: "Deposits received from members" },
+    outflow: { category: "operating", label: "Withdrawals paid to depositors" },
+  },
+  [ACCOUNTS.CASH_ADVANCES]: {
+    inflow: { category: "operating", label: "Cash advance liquidations" },
+    outflow: { category: "operating", label: "Cash advances to officers, employees and members" },
+  },
+  [ACCOUNTS.OTHER_INCOME]: {
+    inflow: { category: "operating", label: "Other cash collections" },
+    outflow: { category: "operating", label: "Other cash collections" },
+  },
+  [ACCOUNTS.OTHER_EXPENSE]: {
+    inflow: { category: "operating", label: "Other cash disbursements" },
+    outflow: { category: "operating", label: "Other cash disbursements" },
+  },
+  [ACCOUNTS.MEMBERS_SHARE_CAPITAL]: {
+    inflow: { category: "financing", label: "Share capital subscriptions from members" },
+    outflow: { category: "financing", label: "Share capital withdrawals/transfers paid to members" },
+  },
+};
+
+/**
+ * Statement of Cash Flows for [periodStart, periodEnd] — direct method.
+ * Every LedgerEntry in the period is grouped by its batchId (postLedgerBatch
+ * always posts one atomic, balanced batch per real-world event), split into
+ * the lines that touch CASH_AND_EQUIVALENTS and the lines that don't. A
+ * batch where every line is a cash-equivalent account (bank_deposit between
+ * Cash on Hand and Cash in Bank, a petty cash replenishment) is an internal
+ * transfer within "cash and cash equivalents" — net zero, excluded
+ * entirely, same as a transfer between two bank accounts never appearing on
+ * a real SCF. A batch with no cash line at all (statutory fund allocation,
+ * dividend distribution capitalized into share capital, deposit interest
+ * credited to the deposit balance, an allowance posting, a loan-status
+ * receivable reclassification) never touches cash and is skipped too —
+ * nothing to exclude; it simply doesn't match any cash-touching row.
+ *
+ * What's left is classified by CASH_LINE_CLASSIFICATION, keyed off the
+ * OTHER line's account code and whether the batch's cash lines net to an
+ * inflow or an outflow. An account this app's code has never actually
+ * paired with a cash line (shouldn't happen — the table above was built by
+ * reading every postLedgerBatch call site) still gets counted, under an
+ * "Unclassified cash activity" operating row that names the account, so a
+ * future code path that starts moving cash through a new account surfaces
+ * here loudly instead of silently unbalancing the statement.
+ *
+ * cashBeginning/cashEnding are computed independently, straight from
+ * getSignedAccountBalances — not derived from the classified rows — so
+ * totalNetChange (operating + investing + financing) and
+ * cashEnding - cashBeginning can be compared as a tie-out check (`balanced`),
+ * the same role getBalanceSheet's and getTrialBalance's `balanced` flags
+ * play elsewhere in this app.
+ */
+export async function getStatementOfCashFlows(periodStart: Date | undefined, periodEnd: Date) {
+  const beginningCutoff = periodStart ? new Date(periodStart.getTime() - 1) : undefined;
+  const [beginningCashRows, endingCashRows, entries] = await Promise.all([
+    beginningCutoff ? getSignedAccountBalances(beginningCutoff, ["asset"]) : Promise.resolve([]),
+    getSignedAccountBalances(periodEnd, ["asset"]),
+    prisma.ledgerEntry.findMany({
+      where: { entryDate: { gte: periodStart, lte: periodEnd } },
+      select: { batchId: true, accountCode: true, debit: true, credit: true },
+    }),
+  ]);
+
+  const cashBeginning = round2ForLedger(
+    beginningCashRows.filter((r) => CASH_AND_EQUIVALENTS.has(r.accountCode)).reduce((sum, r) => sum + r.amount, 0)
+  );
+  const cashEnding = round2ForLedger(
+    endingCashRows.filter((r) => CASH_AND_EQUIVALENTS.has(r.accountCode)).reduce((sum, r) => sum + r.amount, 0)
+  );
+
+  const batches = new Map<string, { accountCode: string; debit: number; credit: number }[]>();
+  for (const entry of entries) {
+    const line = { accountCode: entry.accountCode, debit: Number(entry.debit), credit: Number(entry.credit) };
+    const existing = batches.get(entry.batchId);
+    if (existing) existing.push(line);
+    else batches.set(entry.batchId, [line]);
+  }
+
+  const totals = new Map<string, { category: CashFlowCategory; label: string; amount: number }>();
+  const addAmount = (category: CashFlowCategory, label: string, amount: number) => {
+    const key = `${category}:${label}`;
+    const existing = totals.get(key);
+    if (existing) existing.amount = round2ForLedger(existing.amount + amount);
+    else totals.set(key, { category, label, amount: round2ForLedger(amount) });
+  };
+
+  for (const lines of batches.values()) {
+    const cashLines = lines.filter((l) => CASH_AND_EQUIVALENTS.has(l.accountCode));
+    const otherLines = lines.filter((l) => !CASH_AND_EQUIVALENTS.has(l.accountCode));
+    if (cashLines.length === 0 || otherLines.length === 0) continue;
+
+    const netCashChange = cashLines.reduce((sum, l) => sum + (l.debit - l.credit), 0);
+    const direction: "inflow" | "outflow" = netCashChange >= 0 ? "inflow" : "outflow";
+
+    for (const line of otherLines) {
+      const magnitude = round2ForLedger(Math.abs(line.debit - line.credit));
+      if (magnitude === 0) continue;
+      // Signed so a category's rows sum directly to its net cash flow —
+      // positive for this batch's inflow share, negative for its outflow
+      // share — matching the parenthetical-negative convention the rest
+      // of this app's reports use for an amount that reduces a total.
+      const signedAmount = direction === "inflow" ? magnitude : -magnitude;
+      const classification = CASH_LINE_CLASSIFICATION[line.accountCode]?.[direction];
+      if (classification) {
+        addAmount(classification.category, classification.label, signedAmount);
+      } else {
+        addAmount("operating", `Unclassified cash activity — account ${line.accountCode}`, signedAmount);
+      }
+    }
+  }
+
+  const rows = Array.from(totals.values()).sort(
+    (a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label)
+  );
+
+  const totalFor = (category: CashFlowCategory) =>
+    round2ForLedger(rows.filter((r) => r.category === category).reduce((sum, r) => sum + r.amount, 0));
+
+  const netOperating = totalFor("operating");
+  const netInvesting = totalFor("investing");
+  const netFinancing = totalFor("financing");
+  const totalNetChange = round2ForLedger(netOperating + netInvesting + netFinancing);
+
+  return {
+    periodStart: periodStart ?? null,
+    periodEnd,
+    operatingRows: rows.filter((r) => r.category === "operating"),
+    investingRows: rows.filter((r) => r.category === "investing"),
+    financingRows: rows.filter((r) => r.category === "financing"),
+    netOperating,
+    netInvesting,
+    netFinancing,
+    totalNetChange,
+    cashBeginning,
+    cashEnding,
+    balanced: Math.abs(totalNetChange - round2ForLedger(cashEnding - cashBeginning)) < 0.01,
+  };
 }

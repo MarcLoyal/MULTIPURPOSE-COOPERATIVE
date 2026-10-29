@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { notFound } from "./httpError";
-import { getBalanceSheet, getIncomeStatement, getStatementOfChangesInEquity } from "./ledger";
+import { getBalanceSheet, getIncomeStatement, getStatementOfCashFlows, getStatementOfChangesInEquity } from "./ledger";
 import { getPeriodStart } from "../modules/accounting/fiscalYears.routes";
 import { INFLOW_TYPES } from "../modules/shareCapital/shareCapital.routes";
 import { computeLoanSchedule, computeAging, round2 } from "./loanSchedule";
@@ -12,11 +12,11 @@ import { ACCOUNTS } from "./accounts";
  * a CDA-accredited external auditor's opinion before filing; nothing
  * generated here does that. This assembles, for one fiscal year, the
  * figures a cooperative's auditor and CAIS filer need to work from:
- * the four statements (Financial Condition, Operations, Changes in
- * Equity, and a period-end Trial Balance — Statement of Cash Flows is
- * a separate follow-up, not built yet), statutory fund and dividend
- * distribution records, and membership/share capital/loan/deposit
- * summaries.
+ * the five statements (Financial Condition, Operations, Changes in
+ * Equity, Cash Flows — direct method, see lib/ledger.ts:
+ * getStatementOfCashFlows for the classification rationale — and a
+ * period-end Trial Balance), statutory fund and dividend distribution
+ * records, and membership/share capital/loan/deposit summaries.
  *
  * Works for a CLOSED fiscal year (the normal case — final figures,
  * statutory funds and dividends already recorded) and, so the
@@ -62,6 +62,7 @@ export async function buildCdaDataPack(fiscalYearId: string) {
     balanceSheet,
     incomeStatement,
     equityStatement,
+    cashFlowStatement,
     trialBalance,
     shareCapitalBalances,
     loanEventTotals,
@@ -74,6 +75,7 @@ export async function buildCdaDataPack(fiscalYearId: string) {
     getBalanceSheet(periodEnd),
     getIncomeStatement(periodStart, periodEnd),
     getStatementOfChangesInEquity(periodStart, periodEnd),
+    getStatementOfCashFlows(periodStart, periodEnd),
     getTrialBalanceAsOf(periodEnd),
     getShareCapitalBalancesAsOf(periodEnd),
     getLoanEventTotals(periodStart, periodEnd),
@@ -105,6 +107,7 @@ export async function buildCdaDataPack(fiscalYearId: string) {
     balanceSheet,
     incomeStatement,
     equityStatement,
+    cashFlowStatement,
     trialBalance,
     statutoryFundAllocation: fiscalYear.statutoryFundAllocation,
     dividendDistribution: fiscalYear.dividendDistribution,

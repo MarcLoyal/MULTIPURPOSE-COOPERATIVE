@@ -83,6 +83,21 @@ function buildCsv(data: CdaDataPack) {
       ],
     },
     {
+      title: "Statement of Cash Flows (direct method)",
+      headers: ["Category", "Activity", "Amount"],
+      rows: [
+        ...data.cashFlowStatement.operatingRows.map((r) => ["Operating", r.label, r.amount]),
+        ["", "Net Cash from Operating Activities", data.cashFlowStatement.netOperating],
+        ...data.cashFlowStatement.investingRows.map((r) => ["Investing", r.label, r.amount]),
+        ["", "Net Cash from Investing Activities", data.cashFlowStatement.netInvesting],
+        ...data.cashFlowStatement.financingRows.map((r) => ["Financing", r.label, r.amount]),
+        ["", "Net Cash from Financing Activities", data.cashFlowStatement.netFinancing],
+        ["", "Net Increase (Decrease) in Cash", data.cashFlowStatement.totalNetChange],
+        ["", "Cash and Cash Equivalents, Beginning", data.cashFlowStatement.cashBeginning],
+        ["", "Cash and Cash Equivalents, Ending", data.cashFlowStatement.cashEnding],
+      ],
+    },
+    {
       title: `Trial Balance as of ${data.trialBalance.asOf.slice(0, 10)}`,
       headers: ["Account Code", "Account", "Total Debit", "Total Credit"],
       rows: [
@@ -350,6 +365,73 @@ export function CdaDataPackPage() {
                 </tr>
               </tfoot>
             </table>
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-medium">
+              Statement of Cash Flows (direct method)
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                {([
+                  ["Operating Activities", data.cashFlowStatement.operatingRows, data.cashFlowStatement.netOperating],
+                  ["Investing Activities", data.cashFlowStatement.investingRows, data.cashFlowStatement.netInvesting],
+                  ["Financing Activities", data.cashFlowStatement.financingRows, data.cashFlowStatement.netFinancing],
+                ] as const).map(([title, rows, net]) => (
+                  <Fragment key={title}>
+                    <tr className="border-t border-slate-200 bg-slate-50">
+                      <td className="px-3 py-1 text-slate-500 font-medium" colSpan={2}>
+                        {title}
+                      </td>
+                    </tr>
+                    {rows.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-1.5 pl-6 text-slate-400" colSpan={2}>
+                          No activity in this period.
+                        </td>
+                      </tr>
+                    ) : (
+                      rows.map((r) => (
+                        <tr key={r.label} className="border-t border-slate-100">
+                          <td className="px-3 py-1.5 pl-6">{r.label}</td>
+                          <td className="px-3 py-1.5 text-right">
+                            {r.amount < 0 ? `(${formatCurrency(Math.abs(r.amount))})` : formatCurrency(r.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                    <tr className="border-t border-slate-200 font-medium">
+                      <td className="px-3 py-1.5">Net cash {net >= 0 ? "provided by" : "used in"} {title.toLowerCase()}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        {net < 0 ? `(${formatCurrency(Math.abs(net))})` : formatCurrency(net)}
+                      </td>
+                    </tr>
+                  </Fragment>
+                ))}
+                <tr className="border-t-2 border-slate-300 font-semibold">
+                  <td className="px-3 py-1.5">Net Increase (Decrease) in Cash</td>
+                  <td className="px-3 py-1.5 text-right">
+                    {data.cashFlowStatement.totalNetChange < 0
+                      ? `(${formatCurrency(Math.abs(data.cashFlowStatement.totalNetChange))})`
+                      : formatCurrency(data.cashFlowStatement.totalNetChange)}
+                  </td>
+                </tr>
+                <tr className="border-t border-slate-100">
+                  <td className="px-3 py-1.5 text-slate-500">Cash and Cash Equivalents, Beginning</td>
+                  <td className="px-3 py-1.5 text-right">{formatCurrency(data.cashFlowStatement.cashBeginning)}</td>
+                </tr>
+                <tr className="border-t border-slate-100 font-semibold">
+                  <td className="px-3 py-1.5">Cash and Cash Equivalents, Ending</td>
+                  <td className="px-3 py-1.5 text-right">{formatCurrency(data.cashFlowStatement.cashEnding)}</td>
+                </tr>
+              </tbody>
+            </table>
+            {!data.cashFlowStatement.balanced && (
+              <p className="px-4 py-2 text-xs text-rose-600 border-t border-rose-200 bg-rose-50">
+                This statement doesn't tie out to the net change in cash — check for an "Unclassified cash activity"
+                row above.
+              </p>
+            )}
           </section>
 
           <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">

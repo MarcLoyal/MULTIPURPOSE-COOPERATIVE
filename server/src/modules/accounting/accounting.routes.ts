@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
-import { getBalanceSheet, getIncomeStatement, getTrialBalance, postLedgerBatch } from "../../lib/ledger";
+import {
+  getBalanceSheet,
+  getIncomeStatement,
+  getStatementOfCashFlows,
+  getTrialBalance,
+  postLedgerBatch,
+} from "../../lib/ledger";
 import { buildCdaDataPack } from "../../lib/cdaDataPack";
 import { writeAuditLog } from "../../lib/audit";
 import { ACCOUNTS } from "../../lib/accounts";
@@ -79,6 +85,15 @@ accountingRouter.get("/income-statement", async (req, res) => {
 accountingRouter.get("/balance-sheet", async (req, res) => {
   const { asOf } = req.query as { asOf?: string };
   res.json(await getBalanceSheet(asOf ? new Date(asOf) : undefined));
+});
+
+// Statement of Cash Flows (direct method) — see lib/ledger.ts:
+// getStatementOfCashFlows. from/to are optional, same convention as
+// /income-statement; omitted "from" means "since the ledger began."
+accountingRouter.get("/cash-flow-statement", async (req, res) => {
+  const { from, to } = req.query as { from?: string; to?: string };
+  const statement = await getStatementOfCashFlows(from ? new Date(from) : undefined, to ? new Date(to) : new Date());
+  res.json(statement);
 });
 
 // CDA Report Data Pack — see lib/cdaDataPack.ts's doc comment for what
