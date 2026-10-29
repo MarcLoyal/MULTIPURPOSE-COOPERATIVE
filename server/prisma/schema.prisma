@@ -151,6 +151,7 @@ enum LedgerSourceType {
   cash
   manual
   deposit
+  fiscal_year_close
 }
 
 enum AccountElement {
@@ -381,6 +382,8 @@ model LedgerEntry {
   cashTransaction           CashTransaction?         @relation(fields: [cashTransactionId], references: [id])
   depositTransactionId      String?                  @map("deposit_transaction_id")
   depositTransaction        DepositTransaction?      @relation(fields: [depositTransactionId], references: [id])
+  statutoryFundAllocationId String?                  @map("statutory_fund_allocation_id")
+  statutoryFundAllocation   StatutoryFundAllocation? @relation(fields: [statutoryFundAllocationId], references: [id])
 
   batchId    String   @map("batch_id")
   memo       String?
@@ -471,7 +474,8 @@ model DepositTransaction {
 // patronage refund (report gap-analysis item 4). The actual percentages
 // are bylaws-set, never hard-coded; the Art. 86 bounds themselves are
 // enforced as DB CHECK constraints (see migration) rather than as
-// validation this app can silently skip.
+// validation this app can silently skip. Wired up — see
+// modules/accounting/fiscalYears.routes.ts for the close/allocate flow.
 model FiscalYear {
   id          String           @id @default(uuid())
   yearEndDate DateTime         @map("year_end_date")
@@ -498,8 +502,15 @@ model StatutoryFundAllocation {
   communityDevFundPercent  Decimal    @db.Decimal(5, 2) @map("community_dev_fund_percent")
   // Art. 86 bound: <= 7%.
   optionalFundPercent      Decimal    @db.Decimal(5, 2) @map("optional_fund_percent")
+  // Snapshotted at close time — the period's income statement always
+  // nets to zero after closing (the closing entries zero out that
+  // period's revenue/expense accounts), so re-deriving "what the
+  // surplus was" from a live query after the fact isn't possible.
+  netSurplus               Decimal    @db.Decimal(18, 2) @map("net_surplus")
   createdAt                DateTime   @default(now()) @map("created_at")
   updatedAt                DateTime   @updatedAt @map("updated_at")
+
+  ledgerEntries LedgerEntry[]
 
   @@map("statutory_fund_allocations")
 }

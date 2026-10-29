@@ -17,6 +17,8 @@ import { AllowanceSettingsPage } from "./pages/AllowanceSettingsPage";
 import { DepositsPage } from "./pages/DepositsPage";
 import { DepositAccountDetailPage } from "./pages/DepositAccountDetailPage";
 import { DepositProductsSettingsPage } from "./pages/DepositProductsSettingsPage";
+import { FiscalYearsPage } from "./pages/FiscalYearsPage";
+import { FiscalYearDetailPage } from "./pages/FiscalYearDetailPage";
 
 function ProtectedArea() {
   const { user, loading } = useAuth();
@@ -44,6 +46,8 @@ export default function App() {
             <Route path="/ledger" element={<LedgerPage />} />
             <Route path="/trial-balance" element={<TrialBalancePage />} />
             <Route path="/income-statement" element={<IncomeStatementPage />} />
+            <Route path="/fiscal-years" element={<FiscalYearsPage />} />
+            <Route path="/fiscal-years/:id" element={<FiscalYearDetailPage />} />
             <Route path="/allowance-report" element={<AllowanceReportPage />} />
             <Route path="/settings/allowance-rates" element={<AllowanceSettingsPage />} />
             <Route path="/settings/deposit-products" element={<DepositProductsSettingsPage />} />
