@@ -127,3 +127,45 @@ settingsRouter.put(
     res.json(updated);
   }
 );
+
+// Placeholder loanable-amount rule — see LoanLimitSetting's schema
+// comment and GET /api/loans/loan-limit/:memberId. Not board-approved;
+// the client marks this setting and its effect as unconfirmed.
+settingsRouter.get("/loan-limit", async (_req, res) => {
+  const row = await prisma.loanLimitSetting.findFirst();
+  res.json(row);
+});
+
+const loanLimitSchema = z.object({
+  shareCapitalMultiplier: z.coerce.number().min(0),
+});
+
+settingsRouter.put(
+  "/loan-limit",
+  requireRole("manager", "accountant", "admin"),
+  async (req, res) => {
+    const data = loanLimitSchema.parse(req.body);
+    const existing = await prisma.loanLimitSetting.findFirst();
+    if (!existing) throw badRequest("Loan limit settings row is missing");
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.loanLimitSetting.update({
+        where: { id: existing.id },
+        data: { ...data, updatedById: req.user!.id },
+      });
+      if (Number(existing.shareCapitalMultiplier) !== data.shareCapitalMultiplier) {
+        await writeAuditLog(tx, {
+          entityType: "LoanLimitSetting",
+          entityId: result.id,
+          action: "update",
+          previousValue: { shareCapitalMultiplier: existing.shareCapitalMultiplier },
+          newValue: { shareCapitalMultiplier: result.shareCapitalMultiplier },
+          performedBy: { id: req.user!.id, name: req.user!.name },
+        });
+      }
+      return result;
+    });
+
+    res.json(updated);
+  }
+);

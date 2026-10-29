@@ -583,6 +583,20 @@ model AllowanceRateSetting {
   @@map("allowance_rate_settings")
 }
 
+// Placeholder loanable-amount rule (report gap-analysis follow-up — not
+// yet board-approved): a member's loan limit is modeled as a multiple
+// of their share capital balance, minus what they currently owe on
+// active/past-due loans. See loanLimit.ts. Single settings row, same
+// convention as DividendDistributionSetting/AllowanceRateSetting.
+model LoanLimitSetting {
+  id                     String   @id @default(uuid())
+  shareCapitalMultiplier Decimal  @default(3) @db.Decimal(6, 2) @map("share_capital_multiplier")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+  updatedById            String?  @map("updated_by")
+
+  @@map("loan_limit_settings")
+}
+
 model AuditLog {
   id            String      @id @default(uuid())
   entityType    String      @map("entity_type")

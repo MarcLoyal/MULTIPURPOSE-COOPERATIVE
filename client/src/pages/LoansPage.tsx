@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import { LoanAccount, LoanProduct, Member } from "../lib/types";
+import { LoanAccount, LoanLimit, LoanProduct, Member } from "../lib/types";
 import { Badge } from "../components/Badge";
 import { useAuth } from "../context/AuthContext";
+import { formatCurrency } from "../lib/format";
 
 const CAN_APPLY = ["credit_officer", "admin"];
 
@@ -20,6 +21,7 @@ export function LoansPage() {
     principalAmount: "",
     termMonths: "12",
   });
+  const [loanLimit, setLoanLimit] = useState<LoanLimit | null>(null);
 
   function load() {
     api.get<LoanAccount[]>("/loans").then(setLoans);
@@ -30,6 +32,14 @@ export function LoansPage() {
     api.get<Member[]>("/members?status=active").then(setMembers);
     api.get<LoanProduct[]>("/loans/products").then((p) => setProducts(p.filter((x) => x.isActive)));
   }, []);
+
+  useEffect(() => {
+    if (!form.memberId) {
+      setLoanLimit(null);
+      return;
+    }
+    api.get<LoanLimit>(`/loans/loan-limit/${form.memberId}`).then(setLoanLimit);
+  }, [form.memberId]);
 
   async function handleApply(e: FormEvent) {
     e.preventDefault();
@@ -124,6 +134,26 @@ export function LoansPage() {
               className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
+
+          {loanLimit && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+              <p className="text-slate-600">
+                Loanable amount (placeholder rule — not yet confirmed by board policy):{" "}
+                <span className="font-semibold text-slate-900">{formatCurrency(loanLimit.loanableAmount)}</span>
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {formatCurrency(loanLimit.shareCapitalBalance)} share capital × {loanLimit.shareCapitalMultiplier} −{" "}
+                {formatCurrency(loanLimit.outstandingLoanBalance)} already owed
+              </p>
+              {Number(form.principalAmount) > loanLimit.loanableAmount && (
+                <p className="text-amber-700 mt-2">
+                  This exceeds the placeholder limit — not a hard rule, just a flag until the cooperative confirms
+                  its loan limit policy.
+                </p>
+              )}
+            </div>
+          )}
+
           {error && <p className="text-sm text-rose-600">{error}</p>}
           <button type="submit" className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800">
             Submit Application

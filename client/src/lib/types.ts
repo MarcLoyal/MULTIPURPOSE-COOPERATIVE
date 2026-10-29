@@ -238,6 +238,22 @@ export type DividendDistributionSetting = {
   updatedAt: string;
 };
 
+export type LoanLimitSetting = {
+  id: string;
+  shareCapitalMultiplier: string;
+  updatedAt: string;
+};
+
+export type LoanLimit = {
+  memberId: string;
+  shareCapitalBalance: number;
+  shareCapitalMultiplier: number;
+  grossLimit: number;
+  outstandingLoanBalance: number;
+  loanableAmount: number;
+  isPlaceholder: boolean;
+};
+
 export type FiscalYear = {
   id: string;
   yearEndDate: string;

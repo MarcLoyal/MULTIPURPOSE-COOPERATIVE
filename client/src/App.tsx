@@ -21,6 +21,7 @@ import { FiscalYearsPage } from "./pages/FiscalYearsPage";
 import { FiscalYearDetailPage } from "./pages/FiscalYearDetailPage";
 import { LoanProductsSettingsPage } from "./pages/LoanProductsSettingsPage";
 import { DividendSettingsPage } from "./pages/DividendSettingsPage";
+import { LoanLimitSettingsPage } from "./pages/LoanLimitSettingsPage";
 
 function ProtectedArea() {
   const { user, loading } = useAuth();
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/settings/deposit-products" element={<DepositProductsSettingsPage />} />
             <Route path="/settings/loan-products" element={<LoanProductsSettingsPage />} />
             <Route path="/settings/dividend-rates" element={<DividendSettingsPage />} />
+            <Route path="/settings/loan-limit" element={<LoanLimitSettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
