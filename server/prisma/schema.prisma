@@ -194,6 +194,12 @@ model User {
   passwordHash String     @map("password_hash")
   role         UserRole
   status       UserStatus @default(active)
+  // Set true whenever someone other than the account holder sets this
+  // password — a staff-created or staff-reset member login (see
+  // members.routes.ts's /:id/login handlers). Cleared by the holder's
+  // own successful POST /api/auth/change-password. Defaults false so
+  // no existing login is retroactively forced through this flow.
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 

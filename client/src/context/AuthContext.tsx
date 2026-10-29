@@ -7,6 +7,7 @@ type AuthContextValue = {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -39,7 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  // Re-pulls /auth/me — used after a successful password change, since
+  // mustChangePassword flips server-side but the already-issued token's
+  // decoded claims never carried it in the first place (the server
+  // reads it fresh on every /auth/me call, not from the token).
+  async function refreshUser() {
+    const res = await api.get<{ user: CurrentUser }>("/auth/me");
+    setUser(res.user);
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>{children}</AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

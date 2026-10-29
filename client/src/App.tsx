@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { PortalLayout } from "./components/PortalLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { PortalPage } from "./pages/PortalPage";
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { MembersPage } from "./pages/MembersPage";
 import { MemberDetailPage } from "./pages/MemberDetailPage";
@@ -44,6 +45,10 @@ function MemberArea() {
   if (loading) return <div className="p-8 text-slate-500">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "member") return <Navigate to="/" replace />;
+  // A staff-created or staff-reset password must be replaced before
+  // anything else in the portal is reachable — rendered directly, not
+  // as a child route, so no /portal/* path can bypass it.
+  if (user.mustChangePassword) return <ChangePasswordPage forced />;
   return <PortalLayout />;
 }
 
@@ -55,6 +60,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<MemberArea />}>
             <Route path="/portal" element={<PortalPage />} />
+            <Route path="/portal/change-password" element={<ChangePasswordPage />} />
           </Route>
           <Route element={<StaffArea />}>
             <Route path="/" element={<DashboardPage />} />
