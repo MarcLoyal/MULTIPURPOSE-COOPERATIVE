@@ -48,11 +48,27 @@ export const ACCOUNTS = {
   OTHER_EXPENSE: "79900",
   PROBABLE_LOSSES_EXPENSE: "73380",
   // Deposit liabilities (report gap-analysis item 3) — see
-  // lib/depositInterest.ts for how DepositProduct.type maps to one of
-  // these. "Other Deposit Liabilities" (21130) has no corresponding
-  // DepositType in the schema, so it's intentionally unmapped, same
-  // reasoning as the unmapped loan "litigation" bucket.
+  // deposits.routes.ts's receivableAccountForDepositType for how
+  // DepositProduct.type maps to one of these. "Other Deposit
+  // Liabilities" (21130) has no corresponding DepositType in the
+  // schema, so it's intentionally unmapped, same reasoning as the
+  // unmapped loan "litigation" bucket.
   SAVINGS_DEPOSITS: "21110",
   TIME_DEPOSITS: "21120",
   INTEREST_EXPENSE_ON_DEPOSITS: "71200",
+  // Statutory fund allocation (report gap-analysis item 4) — see
+  // fiscalYears.routes.ts. UNDIVIDED_NET_SURPLUS is both the closing
+  // target for the period's revenue/expense accounts and the source
+  // the four funds are allocated from; whatever isn't allocated stays
+  // here, undivided, exactly matching the account's name.
+  UNDIVIDED_NET_SURPLUS: "30600",
+  RESERVE_FUND: "30810",
+  // CETF splits 50/50 between the cooperative's own internal fund and
+  // what's remitted to the union/federation (StatutoryFundAllocation.
+  // cetfPercent doc comment) — two different GL accounts for the one
+  // percentage.
+  CETF_INTERNAL: "30820",
+  DUE_TO_UNION_FEDERATION_CETF: "21460",
+  COMMUNITY_DEVELOPMENT_FUND: "30830",
+  OPTIONAL_FUND: "30840",
 } as const;

@@ -187,6 +187,41 @@ export type LoanDisclosure = {
   feesNote: string;
 };
 
+export type FiscalYearStatus = "open" | "closed";
+
+export type StatutoryFundAllocation = {
+  id: string;
+  fiscalYearId: string;
+  reserveFundPercent: string;
+  cetfPercent: string;
+  communityDevFundPercent: string;
+  optionalFundPercent: string;
+  netSurplus: string;
+  createdAt: string;
+};
+
+export type FiscalYear = {
+  id: string;
+  yearEndDate: string;
+  status: FiscalYearStatus;
+  createdAt: string;
+  statutoryFundAllocation?: StatutoryFundAllocation | null;
+  periodStart?: string | null;
+};
+
+export type FiscalYearCloseResult = {
+  fiscalYear: FiscalYear;
+  allocated: boolean;
+  netSurplus: number;
+  message?: string;
+  allocation?: StatutoryFundAllocation;
+  reserveAmount?: number;
+  cetfAmount?: number;
+  communityDevAmount?: number;
+  optionalAmount?: number;
+  unallocatedRemainder?: number;
+};
+
 export type IncomeStatementRow = {
   accountCode: string;
   accountLabel: string;

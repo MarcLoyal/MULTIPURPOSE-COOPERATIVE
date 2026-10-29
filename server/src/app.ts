@@ -14,6 +14,7 @@ import { auditRouter } from "./modules/audit/audit.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { settingsRouter } from "./modules/settings/settings.routes";
 import { depositsRouter } from "./modules/deposits/deposits.routes";
+import { fiscalYearsRouter } from "./modules/accounting/fiscalYears.routes";
 
 export const app = express();
 
@@ -85,5 +86,6 @@ app.use("/api/audit", auditRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/deposits", depositsRouter);
+app.use("/api/accounting/fiscal-years", fiscalYearsRouter);
 
 app.use(errorHandler);
