@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
+import { buildMemberStatement } from "../../lib/memberStatement";
 
 export const membersRouter = Router();
 membersRouter.use(requireAuth, requireStaff);
@@ -238,3 +239,8 @@ membersRouter.patch(
     res.json({ id: updated.id, email: updated.email, status: updated.status, createdAt: updated.createdAt });
   }
 );
+
+// Printable/downloadable statement of account — see lib/memberStatement.ts.
+membersRouter.get("/:id/statement", async (req, res) => {
+  res.json(await buildMemberStatement(req.params.id));
+});

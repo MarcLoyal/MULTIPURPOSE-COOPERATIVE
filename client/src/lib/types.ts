@@ -415,3 +415,38 @@ export type DepositAccount = {
   depositProduct?: DepositProduct;
   transactions?: DepositTransaction[];
 };
+
+export type MemberStatement = {
+  generatedAt: string;
+  member: {
+    id: string;
+    memberNumber: string;
+    fullName: string;
+    status: MemberStatus;
+    dateJoined: string;
+  };
+  shareCapital: {
+    balance: number;
+    transactions: { id: string; type: ShareCapitalTxnType; amount: number; createdAt: string }[];
+  } | null;
+  loans: {
+    id: string;
+    loanProduct: string;
+    principalAmount: number;
+    status: LoanStatus;
+    transactions: {
+      id: string;
+      type: "release" | "repayment" | "penalty" | "restructure" | "reclassify";
+      amount: number;
+      balanceAfter: number;
+      createdAt: string;
+    }[];
+  }[];
+  deposits: {
+    id: string;
+    productName: string;
+    balance: number;
+    status: DepositAccountStatus;
+    transactions: { id: string; type: DepositTxnType; amount: number; balanceAfter: number; createdAt: string }[];
+  }[];
+};
