@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: "/cash", label: "Cash" },
   { to: "/ledger", label: "General Ledger" },
   { to: "/trial-balance", label: "Trial Balance" },
+  { to: "/income-statement", label: "Income Statement" },
   { to: "/allowance-report", label: "Allowance for Losses" },
 ];
 

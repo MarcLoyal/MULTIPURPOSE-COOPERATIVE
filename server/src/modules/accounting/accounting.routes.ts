@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole } from "../../middleware/auth";
-import { getTrialBalance, postLedgerBatch } from "../../lib/ledger";
+import { getIncomeStatement, getTrialBalance, postLedgerBatch } from "../../lib/ledger";
 import { writeAuditLog } from "../../lib/audit";
 import { ACCOUNTS } from "../../lib/accounts";
 import { computeAging, computeLoanSchedule } from "../../lib/loanSchedule";
@@ -58,6 +58,18 @@ accountingRouter.get("/trial-balance", async (_req, res) => {
   );
 
   res.json({ rows: withLabels, totals, balanced: Math.abs(totals.totalDebit - totals.totalCredit) < 0.01 });
+});
+
+// Income statement / net surplus for a date range (RA 9520 Art. 86 funds
+// the next fiscal year's close against this figure — see
+// lib/ledger.ts:getIncomeStatement for the per-account computation).
+// from/to are optional, same convention as /ledger: omitted means
+// unbounded, so picking a real fiscal year's start/end is the caller's
+// responsibility, not something this endpoint assumes.
+accountingRouter.get("/income-statement", async (req, res) => {
+  const { from, to } = req.query as { from?: string; to?: string };
+  const statement = await getIncomeStatement(from ? new Date(from) : undefined, to ? new Date(to) : undefined);
+  res.json(statement);
 });
 
 /**
