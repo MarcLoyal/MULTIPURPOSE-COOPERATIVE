@@ -15,6 +15,7 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { settingsRouter } from "./modules/settings/settings.routes";
 import { depositsRouter } from "./modules/deposits/deposits.routes";
 import { fiscalYearsRouter } from "./modules/accounting/fiscalYears.routes";
+import { portalRouter } from "./modules/portal/portal.routes";
 
 export const app = express();
 
@@ -87,5 +88,6 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/deposits", depositsRouter);
 app.use("/api/accounting/fiscal-years", fiscalYearsRouter);
+app.use("/api/portal", portalRouter);
 
 app.use(errorHandler);

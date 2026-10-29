@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
@@ -9,7 +9,7 @@ import { ACCOUNTS } from "../../lib/accounts";
 import { round2 } from "../../lib/loanSchedule";
 
 export const depositsRouter = Router();
-depositsRouter.use(requireAuth);
+depositsRouter.use(requireAuth, requireStaff);
 
 function receivableAccountForDepositType(type: "savings" | "time"): string {
   return type === "time" ? ACCOUNTS.TIME_DEPOSITS : ACCOUNTS.SAVINGS_DEPOSITS;

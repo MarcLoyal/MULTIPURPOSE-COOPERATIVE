@@ -1,10 +1,20 @@
-export type UserRole = "cashier" | "credit_officer" | "manager" | "accountant" | "admin";
+export type UserRole = "cashier" | "credit_officer" | "manager" | "accountant" | "admin" | "member";
 
 export type CurrentUser = {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  memberId?: string | null;
+};
+
+export type MemberLoginStatus = "active" | "disabled";
+
+export type MemberLogin = {
+  id: string;
+  email: string;
+  status: MemberLoginStatus;
+  createdAt: string;
 };
 
 export type MemberStatus = "active" | "inactive" | "resigned" | "deceased" | "terminated";
@@ -23,7 +33,23 @@ export type Member = {
   createdAt: string;
   shareCapitalAccount?: { id: string; balance: string } | null;
   loanAccounts?: LoanAccount[];
+  depositAccounts?: DepositAccount[];
+  userAccount?: MemberLogin | null;
 };
+
+export type DividendEstimate =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      asOf: string;
+      fiscalYearId: string;
+      netSurplusSoFar: number;
+      estimatedShareCapitalInterest: number;
+      estimatedPatronageRefund: number;
+      estimatedTotal: number;
+      isEstimate: true;
+      assumptions: string;
+    };
 
 export type ShareCapitalTxnType = "subscription" | "additional_purchase" | "withdrawal" | "transfer" | "dividend";
 export type ShareCapitalTxnStatus = "pending" | "approved" | "rejected" | "posted";

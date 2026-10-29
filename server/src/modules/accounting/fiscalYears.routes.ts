@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch, getIncomeStatement } from "../../lib/ledger";
@@ -10,7 +10,7 @@ import { round2, computeLoanSchedule, splitRepayment } from "../../lib/loanSched
 import { INFLOW_TYPES } from "../shareCapital/shareCapital.routes";
 
 export const fiscalYearsRouter = Router();
-fiscalYearsRouter.use(requireAuth);
+fiscalYearsRouter.use(requireAuth, requireStaff);
 
 /**
  * A fiscal year's period runs from the day after the previous fiscal
@@ -19,7 +19,7 @@ fiscalYearsRouter.use(requireAuth);
  * yearEndDate. The very first fiscal year's period is unbounded at the
  * start — from the beginning of the ledger's history.
  */
-async function getPeriodStart(fiscalYear: { id: string; yearEndDate: Date }): Promise<Date | undefined> {
+export async function getPeriodStart(fiscalYear: { id: string; yearEndDate: Date }): Promise<Date | undefined> {
   const previous = await prisma.fiscalYear.findFirst({
     where: { yearEndDate: { lt: fiscalYear.yearEndDate }, id: { not: fiscalYear.id } },
     orderBy: { yearEndDate: "desc" },
@@ -41,7 +41,7 @@ async function getPeriodStart(fiscalYear: { id: string; yearEndDate: Date }): Pr
  * measure is volume of business done with the coop, which for loans is
  * interest paid, not principal borrowed or disbursed.
  */
-async function computeInterestPaidByMember(
+export async function computeInterestPaidByMember(
   periodStart: Date | undefined,
   periodEnd: Date
 ): Promise<Map<string, number>> {
@@ -98,7 +98,7 @@ async function computeInterestPaidByMember(
  * little to their total — exactly the point: they shouldn't earn the same
  * interest as a member who held the same balance all year.
  */
-async function computeAverageShareCapitalByMember(
+export async function computeAverageShareCapitalByMember(
   periodStart: Date | undefined,
   periodEnd: Date
 ): Promise<Map<string, number>> {

@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest } from "../../lib/httpError";
 
 export const settingsRouter = Router();
-settingsRouter.use(requireAuth);
+settingsRouter.use(requireAuth, requireStaff);
 
 // Read-only for any authenticated role, same as the rest of the app's
 // reference data (account labels, etc.) — editing is what's gated.

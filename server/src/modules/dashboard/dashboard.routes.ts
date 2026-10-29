@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth, requireStaff } from "../../middleware/auth";
 import { ACCOUNTS } from "../../lib/accounts";
 
 export const dashboardRouter = Router();
-dashboardRouter.use(requireAuth);
+dashboardRouter.use(requireAuth, requireStaff);
 
 dashboardRouter.get("/", async (_req, res) => {
   const [

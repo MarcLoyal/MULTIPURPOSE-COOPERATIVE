@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
 
 export const shareCapitalRouter = Router();
-shareCapitalRouter.use(requireAuth);
+shareCapitalRouter.use(requireAuth, requireStaff);
 
 const createTxnSchema = z.object({
   memberId: z.string().uuid(),

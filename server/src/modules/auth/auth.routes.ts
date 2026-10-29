@@ -31,11 +31,12 @@ authRouter.post("/login", async (req, res) => {
     name: user.name,
     email: user.email,
     role: user.role,
+    memberId: user.memberId,
   });
 
   res.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: { id: user.id, name: user.name, email: user.email, role: user.role, memberId: user.memberId },
   });
 });
 

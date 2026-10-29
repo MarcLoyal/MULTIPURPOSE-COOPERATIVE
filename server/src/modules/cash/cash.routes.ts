@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { conflict } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
 
 export const cashRouter = Router();
-cashRouter.use(requireAuth);
+cashRouter.use(requireAuth, requireStaff);
 
 const createCashTxnSchema = z.object({
   type: z.enum(["collection", "disbursement", "petty_cash", "cash_advance", "bank_deposit"]),

@@ -9,7 +9,15 @@ export type JwtPayload = {
   name: string;
   email: string;
   role: UserRole;
+  memberId?: string | null;
 };
+
+// The five staff roles — every role except the member-portal login.
+// Kept as its own list (rather than deriving it) so adding a new staff
+// role is a one-line change here, and so requireStaff reads as an
+// explicit allow-list, not an "every role but one" computation that a
+// future role addition could silently get wrong.
+const STAFF_ROLES: UserRole[] = ["cashier", "credit_officer", "manager", "accountant", "admin"];
 
 export function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
@@ -28,6 +36,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
       name: decoded.name,
       email: decoded.email,
       role: decoded.role,
+      memberId: decoded.memberId ?? null,
     };
     next();
   } catch {
@@ -51,4 +60,21 @@ export function requireRole(...roles: UserRole[]) {
     }
     next();
   };
+}
+
+/**
+ * Blanket gate every staff router mounts right after requireAuth, so a
+ * member-role login gets a 403 on the whole router regardless of which
+ * route inside it is hit — not something each individual GET has to
+ * remember to add. The member portal (portal.routes.ts) is the only
+ * router this isn't applied to; everything else in app.ts gets it.
+ */
+export function requireStaff(req: Request, _res: Response, next: NextFunction) {
+  if (!req.user) {
+    throw unauthorized();
+  }
+  if (!STAFF_ROLES.includes(req.user.role)) {
+    throw forbidden(`Role '${req.user.role}' is not permitted to access this resource`);
+  }
+  next();
 }
