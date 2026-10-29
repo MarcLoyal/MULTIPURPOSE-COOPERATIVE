@@ -82,7 +82,8 @@ accountingRouter.get("/balance-sheet", async (req, res) => {
 });
 
 // CDA Report Data Pack — see lib/cdaDataPack.ts's doc comment for what
-// this is (and isn't). Only available once the fiscal year is closed.
+// this is (and isn't). Works for an open fiscal year too (preliminary,
+// as-of-now figures), not just a closed one.
 accountingRouter.get("/cda-data-pack/:fiscalYearId", async (req, res) => {
   res.json(await buildCdaDataPack(req.params.fiscalYearId));
 });

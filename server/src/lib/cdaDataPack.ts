@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { notFound, conflict } from "./httpError";
+import { notFound } from "./httpError";
 import { getBalanceSheet, getIncomeStatement, getStatementOfChangesInEquity } from "./ledger";
 import { getPeriodStart } from "../modules/accounting/fiscalYears.routes";
 import { INFLOW_TYPES } from "../modules/shareCapital/shareCapital.routes";
@@ -10,25 +10,40 @@ import { ACCOUNTS } from "./accounts";
  * CDA Report Data Pack — NOT the CAPR itself. The CAPR is filed online
  * through CDA's CAIS system, and its financial statements must carry
  * a CDA-accredited external auditor's opinion before filing; nothing
- * generated here does that. This assembles, for one CLOSED fiscal
- * year, the figures a cooperative's auditor and CAIS filer need to
- * work from: the four statements (Financial Condition, Operations,
- * Changes in Equity, and a period-end Trial Balance — Statement of
- * Cash Flows is a separate follow-up, not built yet), statutory fund
- * and dividend distribution records, and membership/share
- * capital/loan/deposit summaries.
+ * generated here does that. This assembles, for one fiscal year, the
+ * figures a cooperative's auditor and CAIS filer need to work from:
+ * the four statements (Financial Condition, Operations, Changes in
+ * Equity, and a period-end Trial Balance — Statement of Cash Flows is
+ * a separate follow-up, not built yet), statutory fund and dividend
+ * distribution records, and membership/share capital/loan/deposit
+ * summaries.
+ *
+ * Works for a CLOSED fiscal year (the normal case — final figures,
+ * statutory funds and dividends already recorded) and, so the
+ * cooperative can review numbers before deciding to close, for a
+ * still-OPEN one too. An open year has no fixed cutoff yet, so every
+ * ledger-derived figure is computed as of min(yearEndDate, now)
+ * instead of yearEndDate itself, and the response carries
+ * isPreliminary: true — the client must label this run "PRELIMINARY —
+ * fiscal year not yet closed," not present it as final. Revenue/expense
+ * won't have been swept into equity by a close yet either; that's the
+ * same "unswept activity" case getStatementOfChangesInEquity already
+ * folds into its "Current Period Net Surplus (Unclosed)" row for a
+ * closed year with post-close activity, so no special-casing is needed
+ * here for it to stay tied to the balance sheet.
  *
  * Two different accuracy levels sit side by side here, and every
  * section is one or the other:
  *   - Ledger-derived figures (the four statements, statutory funds,
  *     dividends, ending deposit liability balances, per-member share
  *     capital, portfolio-wide outstanding loan balance) are accurate
- *     AS OF the fiscal year's own yearEndDate — the ledger carries
- *     real entryDate/createdAt timestamps for all of this.
+ *     AS OF that cutoff (yearEndDate once closed, min(yearEndDate, now)
+ *     while open) — the ledger carries real entryDate/createdAt
+ *     timestamps for all of this.
  *   - Membership status/class counts and the loan status breakdown
  *     are CURRENT snapshots, not historical — Member.status and
  *     LoanAccount.status are mutable fields with no history table, so
- *     there is no way to reconstruct what they were AT yearEndDate.
+ *     there is no way to reconstruct what they were as of that cutoff.
  *     Labeled as such in the response; the client must not present
  *     them as point-in-time.
  */
@@ -38,12 +53,10 @@ export async function buildCdaDataPack(fiscalYearId: string) {
     include: { statutoryFundAllocation: true, dividendDistribution: true },
   });
   if (!fiscalYear) throw notFound("Fiscal year not found");
-  if (fiscalYear.status !== "closed") {
-    throw conflict("This fiscal year hasn't been closed yet — the data pack is only available for a closed fiscal year.");
-  }
 
+  const isPreliminary = fiscalYear.status !== "closed";
   const periodStart = await getPeriodStart(fiscalYear);
-  const periodEnd = fiscalYear.yearEndDate;
+  const periodEnd = isPreliminary ? new Date(Math.min(fiscalYear.yearEndDate.getTime(), Date.now())) : fiscalYear.yearEndDate;
 
   const [
     balanceSheet,
@@ -80,7 +93,14 @@ export async function buildCdaDataPack(fiscalYearId: string) {
 
   return {
     isUnaudited: true,
-    fiscalYear: { id: fiscalYear.id, yearEndDate: fiscalYear.yearEndDate, periodStart: periodStart ?? null },
+    isPreliminary,
+    fiscalYear: {
+      id: fiscalYear.id,
+      yearEndDate: fiscalYear.yearEndDate,
+      status: fiscalYear.status,
+      periodStart: periodStart ?? null,
+      reportAsOf: periodEnd,
+    },
     generatedAt: new Date(),
     balanceSheet,
     incomeStatement,

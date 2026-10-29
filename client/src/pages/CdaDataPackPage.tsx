@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { CdaDataPack, FiscalYear } from "../lib/types";
 import { formatCurrency, formatDate, formatDateTime, humanizeEnum } from "../lib/format";
@@ -40,9 +40,9 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function buildCsv(data: CdaDataPack) {
   downloadCsv(`cda-data-pack-${data.fiscalYear.yearEndDate.slice(0, 10)}.csv`, [
     {
-      title: `CDA Report Data Pack — NOT the CAPR itself; unaudited — fiscal year ending ${data.fiscalYear.yearEndDate.slice(0, 10)}`,
-      headers: ["Generated"],
-      rows: [[data.generatedAt]],
+      title: `CDA Report Data Pack — NOT the CAPR itself; unaudited${data.isPreliminary ? "; PRELIMINARY, fiscal year not yet closed" : ""} — fiscal year ending ${data.fiscalYear.yearEndDate.slice(0, 10)}`,
+      headers: ["Generated", "Figures As Of"],
+      rows: [[data.generatedAt, data.fiscalYear.reportAsOf]],
     },
     {
       title: "Statement of Financial Condition",
@@ -168,7 +168,7 @@ export function CdaDataPackPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<FiscalYear[]>("/accounting/fiscal-years").then((years) => setFiscalYears(years.filter((y) => y.status === "closed")));
+    api.get<FiscalYear[]>("/accounting/fiscal-years").then(setFiscalYears);
   }, []);
 
   useEffect(() => {
@@ -188,8 +188,8 @@ export function CdaDataPackPage() {
     <div>
       <h1 className="text-xl font-semibold text-slate-900 mb-1">CDA Report Data Pack</h1>
       <p className="text-sm text-slate-500 mb-4">
-        For a closed fiscal year: the figures your CDA-accredited external auditor and CAIS filing need to work
-        from.
+        The figures your CDA-accredited external auditor and CAIS filing need to work from, for a closed fiscal
+        year — or a preview of them for a fiscal year that's still open.
       </p>
 
       <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-xl p-4 mb-6 print:hidden">
@@ -202,16 +202,28 @@ export function CdaDataPackPage() {
         </p>
       </div>
 
+      {data?.isPreliminary && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-900 text-sm rounded-xl p-4 mb-6">
+          <p className="font-medium mb-1">PRELIMINARY — fiscal year not yet closed</p>
+          <p>
+            This fiscal year is still open, so these figures are as of today ({formatDate(data.fiscalYear.reportAsOf)}
+            ), not a final year-end cut. They'll change as more activity is posted, and the Statement of Changes in
+            Equity's "Current Period Net Surplus (Unclosed)" row reflects surplus the fiscal-year close hasn't swept
+            into equity yet. Use this to review the numbers before closing — not as the closed-year data pack.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 mb-6 print:hidden">
         <select
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
-          <option value="">Select a closed fiscal year…</option>
+          <option value="">Select a fiscal year…</option>
           {fiscalYears.map((y) => (
             <option key={y.id} value={y.id}>
-              Year ending {formatDate(y.yearEndDate)}
+              Year ending {formatDate(y.yearEndDate)} {y.status === "open" ? "(open — preliminary)" : ""}
             </option>
           ))}
         </select>
@@ -241,9 +253,12 @@ export function CdaDataPackPage() {
         <div className="space-y-6 max-w-3xl">
           <div className="text-center border-b border-slate-200 pb-4">
             <p className="font-semibold text-lg text-slate-900">Multipurpose Cooperative</p>
-            <p className="text-sm text-slate-500">CDA Report Data Pack — Unaudited</p>
+            <p className="text-sm text-slate-500">
+              CDA Report Data Pack — Unaudited{data.isPreliminary ? " — PRELIMINARY (fiscal year not yet closed)" : ""}
+            </p>
             <p className="text-xs text-slate-400 mt-1">
-              Fiscal year ending {formatDate(data.fiscalYear.yearEndDate)} · Generated{" "}
+              Fiscal year ending {formatDate(data.fiscalYear.yearEndDate)}
+              {data.isPreliminary ? ` · Figures as of ${formatDate(data.fiscalYear.reportAsOf)}` : ""} · Generated{" "}
               {formatDateTime(data.generatedAt)}
             </p>
           </div>
@@ -412,24 +427,16 @@ export function CdaDataPackPage() {
               <dt className="text-slate-500">Total Members (Current)</dt>
               <dd className="text-right font-medium">{data.membership.totalMembersCurrent}</dd>
               {Object.entries(data.membership.currentCountsByStatus).map(([status, count]) => (
-                <>
-                  <dt key={`s-${status}`} className="text-slate-500">
-                    {humanizeEnum(status)} (Current)
-                  </dt>
-                  <dd key={`sv-${status}`} className="text-right font-medium">
-                    {count}
-                  </dd>
-                </>
+                <Fragment key={`s-${status}`}>
+                  <dt className="text-slate-500">{humanizeEnum(status)} (Current)</dt>
+                  <dd className="text-right font-medium">{count}</dd>
+                </Fragment>
               ))}
               {Object.entries(data.membership.currentCountsByClass).map(([cls, count]) => (
-                <>
-                  <dt key={`c-${cls}`} className="text-slate-500">
-                    {humanizeEnum(cls)} (Current)
-                  </dt>
-                  <dd key={`cv-${cls}`} className="text-right font-medium">
-                    {count}
-                  </dd>
-                </>
+                <Fragment key={`c-${cls}`}>
+                  <dt className="text-slate-500">{humanizeEnum(cls)} (Current)</dt>
+                  <dd className="text-right font-medium">{count}</dd>
+                </Fragment>
               ))}
             </dl>
           </section>
@@ -482,14 +489,10 @@ export function CdaDataPackPage() {
                 {formatCurrency(data.loans.allowanceForProbableLossesAtYearEnd)}
               </dd>
               {data.loans.currentStatusBreakdown.map((s) => (
-                <>
-                  <dt key={`l-${s.status}`} className="text-slate-500">
-                    {humanizeEnum(s.status)} (Current, count)
-                  </dt>
-                  <dd key={`lv-${s.status}`} className="text-right font-medium">
-                    {s.count}
-                  </dd>
-                </>
+                <Fragment key={`l-${s.status}`}>
+                  <dt className="text-slate-500">{humanizeEnum(s.status)} (Current, count)</dt>
+                  <dd className="text-right font-medium">{s.count}</dd>
+                </Fragment>
               ))}
             </dl>
           </section>
@@ -502,14 +505,10 @@ export function CdaDataPackPage() {
               <dt className="text-slate-500">Withdrawals During Period</dt>
               <dd className="text-right font-medium">{formatCurrency(data.deposits.withdrawalsDuringPeriod)}</dd>
               {data.deposits.endingBalancesByProduct.map((d) => (
-                <>
-                  <dt key={`d-${d.accountCode}`} className="text-slate-500">
-                    {d.label} at Year-End
-                  </dt>
-                  <dd key={`dv-${d.accountCode}`} className="text-right font-medium">
-                    {formatCurrency(d.amount)}
-                  </dd>
-                </>
+                <Fragment key={d.accountCode}>
+                  <dt className="text-slate-500">{d.label} at Year-End</dt>
+                  <dd className="text-right font-medium">{formatCurrency(d.amount)}</dd>
+                </Fragment>
               ))}
             </dl>
           </section>

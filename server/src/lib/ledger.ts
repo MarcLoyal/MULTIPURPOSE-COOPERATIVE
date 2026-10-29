@@ -261,15 +261,16 @@ export async function getBalanceSheet(asOf?: Date) {
  * fiscal year ever" (getPeriodStart's own convention), so beginning
  * balances are all zero rather than queried.
  *
- * Expected to be called with a CLOSED fiscal year's own period, where
+ * Typically called with a CLOSED fiscal year's own period, where
  * revenue/expense accounts should already have been swept into equity
- * by that year's close entries (fiscalYears.routes.ts). In practice
- * that sweep isn't a hard guarantee — nothing stops a later ledger
- * posting from landing with an entryDate inside an already-closed
- * period (e.g. test fixtures, or a backdated correction) — so, exactly
- * like getBalanceSheet, any revenue/expense net still sitting unswept
- * as of a cutoff is folded into equity as a "Current Period Net
- * Surplus (Unclosed)" row. This keeps totalEnding tied to
+ * by that year's close entries (fiscalYears.routes.ts) — but also
+ * works for a still-OPEN fiscal year's period-to-date (the CDA data
+ * pack's preliminary mode), where nothing has been swept yet at all.
+ * Either way, any revenue/expense net still sitting unswept as of a
+ * cutoff — the whole period's, for an open year; just a post-close
+ * remainder, for a closed one — is folded into equity as a "Current
+ * Period Net Surplus (Unclosed)" row, exactly like getBalanceSheet
+ * does. This keeps totalEnding tied to
  * getBalanceSheet(periodEnd).totalEquity unconditionally, not just in
  * the clean-close case.
  */

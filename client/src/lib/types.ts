@@ -491,7 +491,14 @@ export type StatementOfChangesInEquity = {
 
 export type CdaDataPack = {
   isUnaudited: true;
-  fiscalYear: { id: string; yearEndDate: string; periodStart: string | null };
+  isPreliminary: boolean;
+  fiscalYear: {
+    id: string;
+    yearEndDate: string;
+    status: FiscalYearStatus;
+    periodStart: string | null;
+    reportAsOf: string;
+  };
   generatedAt: string;
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
