@@ -163,6 +163,7 @@ function buildCsv(data: CdaDataPack) {
 
 export function CdaDataPackPage() {
   const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>([]);
+  const [fiscalYearsLoading, setFiscalYearsLoading] = useState(true);
   const [fiscalYearsError, setFiscalYearsError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [data, setData] = useState<CdaDataPack | null>(null);
@@ -172,7 +173,8 @@ export function CdaDataPackPage() {
     api
       .get<FiscalYear[]>("/accounting/fiscal-years")
       .then(setFiscalYears)
-      .catch((err) => setFiscalYearsError(err instanceof Error ? err.message : "Failed to load fiscal years"));
+      .catch((err) => setFiscalYearsError(err instanceof Error ? err.message : "Failed to load fiscal years"))
+      .finally(() => setFiscalYearsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -218,10 +220,11 @@ export function CdaDataPackPage() {
         </div>
       )}
 
-      {fiscalYearsError && (
+      {fiscalYearsLoading && <p className="text-sm text-slate-500 mb-4">Loading fiscal years…</p>}
+      {!fiscalYearsLoading && fiscalYearsError && (
         <p className="text-sm text-rose-600 mb-4">Couldn't load fiscal years: {fiscalYearsError}</p>
       )}
-      {!fiscalYearsError && fiscalYears.length === 0 && (
+      {!fiscalYearsLoading && !fiscalYearsError && fiscalYears.length === 0 && (
         <p className="text-sm text-slate-500 mb-4">
           No fiscal years exist yet — create one on the Fiscal Years page first.
         </p>
