@@ -21,6 +21,11 @@ const createTxnSchema = z.object({
 // balance-history logic when computing average share months.
 export const INFLOW_TYPES = new Set(["subscription", "additional_purchase", "dividend"]);
 
+// Of the inflow types, only these two are a member actually paying in
+// cash — "dividend" is a system-posted credit with nothing to receipt.
+// Exported so receipts.routes.ts can restrict receipt issuance to them.
+export const PAID_INFLOW_TYPES = new Set(["subscription", "additional_purchase"]);
+
 async function recomputeBalance(tx: any, accountId: string) {
   const posted = await tx.shareCapitalTransaction.findMany({
     where: { shareCapitalAccountId: accountId, status: "posted" },
@@ -40,7 +45,7 @@ shareCapitalRouter.get("/transactions", async (req, res) => {
       status: status ? (status as any) : undefined,
       account: memberId ? { memberId } : undefined,
     },
-    include: { account: { include: { member: true } } },
+    include: { account: { include: { member: true } }, receipt: true },
     orderBy: { createdAt: "desc" },
   });
   res.json(txns);
@@ -49,7 +54,7 @@ shareCapitalRouter.get("/transactions", async (req, res) => {
 shareCapitalRouter.get("/transactions/:id", async (req, res) => {
   const txn = await prisma.shareCapitalTransaction.findUnique({
     where: { id: req.params.id },
-    include: { account: { include: { member: true } }, ledgerEntries: true },
+    include: { account: { include: { member: true } }, ledgerEntries: true, receipt: true },
   });
   if (!txn) throw notFound("Share capital transaction not found");
   res.json(txn);

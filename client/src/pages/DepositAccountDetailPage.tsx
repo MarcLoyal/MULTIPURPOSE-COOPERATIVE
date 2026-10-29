@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { DepositAccount } from "../lib/types";
+import { ReceiptCell } from "../components/ReceiptCell";
 import { formatCurrency, formatDate, formatDateTime, humanizeEnum } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
@@ -31,8 +32,11 @@ export function DepositAccountDetailPage() {
     setNotice(null);
     try {
       await api.post(`/deposits/accounts/${id}/transactions`, { type, amount: Number(amount) });
-      if (type === "deposit") setDepositAmount("");
-      else setWithdrawalAmount("");
+      if (type === "deposit") {
+        setDepositAmount("");
+      } else {
+        setWithdrawalAmount("");
+      }
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : `Failed to record ${type}`);
@@ -170,12 +174,13 @@ export function DepositAccountDetailPage() {
               <th className="px-4 py-2">Amount</th>
               <th className="px-4 py-2">Balance After</th>
               <th className="px-4 py-2">Date</th>
+              <th className="px-4 py-2">Receipt</th>
             </tr>
           </thead>
           <tbody>
             {!account.transactions || account.transactions.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-500" colSpan={4}>
+                <td className="px-4 py-4 text-slate-500" colSpan={5}>
                   No transactions yet.
                 </td>
               </tr>
@@ -186,6 +191,19 @@ export function DepositAccountDetailPage() {
                   <td className="px-4 py-2">{formatCurrency(t.amount)}</td>
                   <td className="px-4 py-2">{formatCurrency(t.balanceAfter)}</td>
                   <td className="px-4 py-2">{formatDateTime(t.createdAt)}</td>
+                  <td className="px-4 py-2">
+                    {t.type === "deposit" ? (
+                      <ReceiptCell
+                        receipt={t.receipt}
+                        transactionId={t.id}
+                        sourceField="depositTransactionId"
+                        userRole={role}
+                        onChange={load}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
               ))
             )}

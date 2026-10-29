@@ -55,6 +55,36 @@ export type DividendEstimate =
 export type ShareCapitalTxnType = "subscription" | "additional_purchase" | "withdrawal" | "transfer" | "dividend";
 export type ShareCapitalTxnStatus = "pending" | "approved" | "rejected" | "posted";
 
+export type ReceiptStatus = "active" | "void";
+export type ReceiptSourceType = "loan_repayment" | "deposit" | "share_capital";
+
+export type Receipt = {
+  id: string;
+  sequenceNumber: number;
+  documentLabel: string;
+  sourceType: ReceiptSourceType;
+  amount: string;
+  status: ReceiptStatus;
+  voidReason?: string | null;
+  printCount: number;
+  createdAt: string;
+};
+
+export type ReceiptPrintData = {
+  id: string;
+  sequenceNumber: number;
+  documentLabel: string;
+  status: ReceiptStatus;
+  voidReason: string | null;
+  isReprint: boolean;
+  amount: number;
+  date: string;
+  memberName: string;
+  memberNumber: string;
+  particulars: string;
+  receivedByName: string;
+};
+
 export type ShareCapitalTransaction = {
   id: string;
   shareCapitalAccountId: string;
@@ -66,6 +96,7 @@ export type ShareCapitalTransaction = {
   createdAt: string;
   approvedAt?: string | null;
   account?: { member: Member };
+  receipt?: Receipt | null;
 };
 
 export type LoanStatus =
@@ -87,6 +118,7 @@ export type LoanTransaction = {
   balanceAfter: string;
   createdById: string;
   createdAt: string;
+  receipt?: Receipt | null;
 };
 
 export type LoanAging = {
@@ -271,6 +303,12 @@ export type LoanLimitSetting = {
   updatedAt: string;
 };
 
+export type ReceiptSetting = {
+  id: string;
+  documentLabel: string;
+  updatedAt: string;
+};
+
 export type LoanLimit = {
   memberId: string;
   shareCapitalBalance: number;
@@ -362,6 +400,7 @@ export type DepositTransaction = {
   balanceAfter: string;
   createdById: string;
   createdAt: string;
+  receipt?: Receipt | null;
 };
 
 export type DepositAccount = {

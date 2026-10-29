@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { LoanAccount, LoanDisclosure } from "../lib/types";
 import { Badge } from "../components/Badge";
+import { ReceiptCell } from "../components/ReceiptCell";
 import { ActivityLog } from "../components/ActivityLog";
 import { formatCurrency, formatDate } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
@@ -186,12 +187,13 @@ export function LoanDetailPage() {
                   <th className="px-4 py-2">Amount</th>
                   <th className="px-4 py-2">Balance After</th>
                   <th className="px-4 py-2">Date</th>
+                  <th className="px-4 py-2">Receipt</th>
                 </tr>
               </thead>
               <tbody>
                 {(loan.transactions ?? []).length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-slate-500" colSpan={4}>
+                    <td className="px-4 py-4 text-slate-500" colSpan={5}>
                       No transactions yet.
                     </td>
                   </tr>
@@ -202,6 +204,19 @@ export function LoanDetailPage() {
                       <td className="px-4 py-2">{formatCurrency(t.amount)}</td>
                       <td className="px-4 py-2">{formatCurrency(t.balanceAfter)}</td>
                       <td className="px-4 py-2">{formatDate(t.createdAt)}</td>
+                      <td className="px-4 py-2">
+                        {t.type === "repayment" ? (
+                          <ReceiptCell
+                            receipt={t.receipt}
+                            transactionId={t.id}
+                            sourceField="loanTransactionId"
+                            userRole={role}
+                            onChange={load}
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}

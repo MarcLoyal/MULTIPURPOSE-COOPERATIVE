@@ -28,12 +28,13 @@ export function Layout() {
         { to: "/settings/loan-products", label: "Loan Products" },
         { to: "/settings/dividend-rates", label: "Dividend Rates" },
         { to: "/settings/loan-limit", label: "Loan Limit" },
+        { to: "/settings/receipt-label", label: "Receipt Label" },
       ]
     : NAV_ITEMS;
 
   return (
     <div className="min-h-screen flex">
-      <aside className="w-60 shrink-0 bg-slate-900 text-slate-100 flex flex-col">
+      <aside className="w-60 shrink-0 bg-slate-900 text-slate-100 flex flex-col print:hidden">
         <div className="px-4 py-5 border-b border-slate-700">
           <p className="font-semibold leading-tight">Multipurpose Cooperative</p>
           <p className="text-xs text-slate-400">Automation MVP</p>
@@ -62,7 +63,7 @@ export function Layout() {
           </button>
         </div>
       </aside>
-      <main className="flex-1 bg-slate-50 p-6 overflow-y-auto">
+      <main className="flex-1 bg-slate-50 p-6 overflow-y-auto print:bg-white print:p-0">
         <Outlet />
       </main>
     </div>

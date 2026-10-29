@@ -25,6 +25,8 @@ import { FiscalYearDetailPage } from "./pages/FiscalYearDetailPage";
 import { LoanProductsSettingsPage } from "./pages/LoanProductsSettingsPage";
 import { DividendSettingsPage } from "./pages/DividendSettingsPage";
 import { LoanLimitSettingsPage } from "./pages/LoanLimitSettingsPage";
+import { ReceiptSettingsPage } from "./pages/ReceiptSettingsPage";
+import { ReceiptPrintPage } from "./pages/ReceiptPrintPage";
 
 // Staff and member logins are two entirely separate route trees, each
 // behind its own guard that redirects the wrong role away before its
@@ -83,6 +85,8 @@ export default function App() {
             <Route path="/settings/loan-products" element={<LoanProductsSettingsPage />} />
             <Route path="/settings/dividend-rates" element={<DividendSettingsPage />} />
             <Route path="/settings/loan-limit" element={<LoanLimitSettingsPage />} />
+            <Route path="/settings/receipt-label" element={<ReceiptSettingsPage />} />
+            <Route path="/receipts/:id" element={<ReceiptPrintPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

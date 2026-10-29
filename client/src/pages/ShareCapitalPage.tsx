@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { Member, ShareCapitalTransaction, ShareCapitalTxnType } from "../lib/types";
 import { Badge } from "../components/Badge";
+import { ReceiptCell } from "../components/ReceiptCell";
 import { formatDateTime } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
@@ -125,19 +126,20 @@ export function ShareCapitalPage() {
               <th className="px-4 py-2">Amount</th>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2">Created</th>
+              <th className="px-4 py-2">Receipt</th>
               {canApprove && <th className="px-4 py-2">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {txns === null ? (
               <tr>
-                <td className="px-4 py-4 text-slate-500" colSpan={6}>
+                <td className="px-4 py-4 text-slate-500" colSpan={7}>
                   Loading…
                 </td>
               </tr>
             ) : txns.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-500" colSpan={6}>
+                <td className="px-4 py-4 text-slate-500" colSpan={7}>
                   No share capital transactions yet.
                 </td>
               </tr>
@@ -151,10 +153,23 @@ export function ShareCapitalPage() {
                     <Badge value={t.status} />
                   </td>
                   <td className="px-4 py-2">{formatDateTime(t.createdAt)}</td>
+                  <td className="px-4 py-2">
+                    {t.status === "posted" && (t.type === "subscription" || t.type === "additional_purchase") ? (
+                      <ReceiptCell
+                        receipt={t.receipt}
+                        transactionId={t.id}
+                        sourceField="shareCapitalTransactionId"
+                        userRole={user?.role}
+                        onChange={load}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   {canApprove && (
                     <td className="px-4 py-2">
                       {t.status === "pending" && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                           <button
                             onClick={() => act(t.id, "approve")}
                             className="text-emerald-700 text-xs font-medium hover:underline"

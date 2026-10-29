@@ -230,7 +230,10 @@ loansRouter.get("/", async (req, res) => {
 loansRouter.get("/:id", async (req, res) => {
   const loan = await prisma.loanAccount.findUnique({
     where: { id: req.params.id },
-    include: { member: true, transactions: { orderBy: { createdAt: "asc" } } },
+    include: {
+      member: true,
+      transactions: { orderBy: { createdAt: "asc" }, include: { receipt: true } },
+    },
   });
   if (!loan) throw notFound("Loan not found");
   const enriched = await withAging(loan);
