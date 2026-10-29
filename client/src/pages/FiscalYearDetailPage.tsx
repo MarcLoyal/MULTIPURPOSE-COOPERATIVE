@@ -138,6 +138,11 @@ export function FiscalYearDetailPage() {
       {canClose && (
         <form onSubmit={handleClose} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
           <p className="text-slate-700 font-medium">Statutory fund allocation (RA 9520 Art. 86 bounds)</p>
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg p-3">
+            The percentages below are pre-filled at Art. 86's own floor/ceiling values (reserve 10%, CETF 10%,
+            community dev 3%, optional 0%) — a safe, compliant starting point, not your cooperative's actual
+            bylaws figures. Confirm the real percentages with your board/bylaws before closing.
+          </div>
           <div className="grid grid-cols-2 gap-4 max-w-md">
             <label className="text-sm text-slate-600">
               Reserve Fund % (min 10)
