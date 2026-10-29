@@ -1,9 +1,15 @@
 name: Migrate Production Database (Supabase)
 
-# Manual trigger only. Applies pending Prisma migrations to the production
-# Supabase database — never runs on push, pull_request, or merge. Trigger
-# it from the Actions tab's "Run workflow" button when the deployed server
-# is running migrations the database hasn't received yet.
+# Runs two ways:
+#   1. Automatically, whenever a push to main touches
+#      server/prisma/migrations/** — i.e. a PR with a new migration just
+#      got merged. `prisma migrate deploy` only applies migrations the
+#      database hasn't seen yet, so this is a no-op if the migration was
+#      already applied manually before merging (see
+#      warn-on-schema-change.yml's pre-merge guidance), and safe to run
+#      on any other push to main that happens to touch a migration file.
+#   2. Manually, from the Actions tab's "Run workflow" button — kept for
+#      the pre-merge case, or to re-run after a transient failure.
 #
 # Only ever runs `prisma migrate deploy` (apply pending migrations) and
 # `prisma migrate status` (report state). Deliberately never runs
@@ -11,6 +17,18 @@ name: Migrate Production Database (Supabase)
 # production data, so they're not in this workflow's vocabulary at all.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "server/prisma/migrations/**"
+
+# Only one deploy at a time — a manual run kicked off while an
+# auto-triggered one from the same merge is still in flight queues
+# instead of racing it.
+concurrency:
+  group: migrate-production-db
+  cancel-in-progress: false
 
 permissions:
   contents: read

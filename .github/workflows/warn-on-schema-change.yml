@@ -29,10 +29,12 @@ jobs:
 
             Preview deployments for this PR share the **production** database. They will keep running against the *current* schema until a migration is actually applied — the preview will not show this change working, and won't catch a bad migration either.
 
+            **Also note:** merging this PR to \`main\` will automatically run the **"Migrate Production Database (Supabase)"** workflow (it triggers on any push to \`main\` touching \`server/prisma/migrations/**\`), applying this migration to production right away. If you already ran it manually pre-merge, the auto-run is a no-op.
+
             **Before merging:**
             1. Read the new/changed file(s) under \`server/prisma/migrations/\` — confirm what the migration actually does, not just what the PR description says.
-            2. If it's purely additive (new nullable column, new table, new index — nothing existing code reads or writes) it's generally safe to run the **"Migrate Production Database (Supabase)"** workflow against production *before* merging: old code keeps working unchanged against the post-migration schema, and the new code in this PR is what starts using the new column/table once merged.
-            3. If it renames or drops a column/table, changes a type, or adds a \`NOT NULL\` column with no default — that's a breaking change for whatever's currently running in production. Don't run it pre-merge. Either make it additive instead (expand/contract: add the new shape, migrate data, drop the old shape in a *later* PR once the new code is live), or test it against a separate non-production database first.
+            2. If it's purely additive (new nullable column, new table, new index — nothing existing code reads or writes), merging is enough — it'll apply to production automatically. Running it manually pre-merge first is still fine too: old code keeps working unchanged against the post-migration schema, and the new code in this PR is what starts using the new column/table once merged.
+            3. If it renames or drops a column/table, changes a type, or adds a \`NOT NULL\` column with no default — that's a breaking change for whatever's currently running in production, and merging will apply it to production immediately. Don't merge yet. Either make it additive instead (expand/contract: add the new shape, migrate data, drop the old shape in a *later* PR once the new code is live), or test it against a separate non-production database first.
 
             Ask if you want to discuss whether this one needs a separate test database.`;
 
