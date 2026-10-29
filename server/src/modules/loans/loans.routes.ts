@@ -227,14 +227,21 @@ loansRouter.post("/", requireRole("credit_officer", "admin"), async (req, res) =
 
   const loan = await prisma.$transaction(async (tx) => {
     const created = await tx.loanAccount.create({
-      // computationMethod/ratePeriod omitted when no product was linked —
-      // the LoanAccount columns' own defaults (diminishing balance,
-      // monthly) apply.
+      // Explicit fields, not a spread — see members.routes.ts's create()
+      // for why. computationMethod/ratePeriod pass through as `undefined`
+      // when no product was linked, which Prisma treats as "not set" the
+      // same as omitting the key, so the LoanAccount columns' own
+      // defaults (diminishing balance, monthly) still apply.
       data: {
-        ...data,
+        memberId: data.memberId,
+        loanProduct: data.loanProduct,
+        loanProductId: data.loanProductId,
+        principalAmount: data.principalAmount,
+        interestRate: data.interestRate,
+        termMonths: data.termMonths,
         status: "applied",
-        ...(computationMethod ? { computationMethod } : {}),
-        ...(ratePeriod ? { ratePeriod } : {}),
+        computationMethod,
+        ratePeriod,
       },
     });
     await writeAuditLog(tx, {

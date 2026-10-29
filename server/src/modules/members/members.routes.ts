@@ -61,8 +61,21 @@ membersRouter.post("/", requireRole("admin", "manager", "accountant"), async (re
 
   const member = await prisma.$transaction(async (tx) => {
     const created = await tx.member.create({
+      // Explicit fields, not a spread — Vercel's build flagged
+      // `...data` here as resolving to `never` against Prisma's
+      // generated (XOR-unioned) create-input type. Not reproducible
+      // locally even controlling for TS version/Prisma Client version/
+      // compiler options, but explicit fields sidestep the whole
+      // spread-into-union inference question regardless of root cause.
       data: {
-        ...data,
+        memberNumber: data.memberNumber,
+        fullName: data.fullName,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        dateJoined: data.dateJoined,
+        beneficiaryName: data.beneficiaryName,
+        beneficiaryRelationship: data.beneficiaryRelationship,
         createdById: req.user!.id,
       },
     });
