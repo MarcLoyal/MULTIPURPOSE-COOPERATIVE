@@ -48,7 +48,7 @@ export function ReceiptSettingsPage() {
       <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-xl p-4 mb-6">
         <p className="font-medium mb-1">Not yet confirmed</p>
         <p>
-          Defaults to "Acknowledgment Receipt," not "Official Receipt" — that term carries specific BIR
+          Defaults to "Payment Receipt," not "Official Receipt" — that term carries specific BIR
           Computerized Accounting System (CAS) / Authority to Print (ATP) implications under the EOPT Act that
           this cooperative hasn't confirmed with its accountant yet. Change this only once that's resolved. See
           the README's open questions.

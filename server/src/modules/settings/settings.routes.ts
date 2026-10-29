@@ -171,7 +171,7 @@ settingsRouter.put(
 );
 
 // The label printed on a receipt — see ReceiptSetting's schema
-// comment for why it's "Acknowledgment Receipt" by default, not
+// comment for why it's "Payment Receipt" by default, not
 // "Official Receipt".
 settingsRouter.get("/receipt-label", async (_req, res) => {
   const row = await prisma.receiptSetting.findFirst();

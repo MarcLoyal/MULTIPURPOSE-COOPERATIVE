@@ -48,7 +48,7 @@ export async function issueReceipt(params: IssueReceiptParams) {
     return tx.receipt.create({
       data: {
         sequenceNumber,
-        documentLabel: setting?.documentLabel ?? "Acknowledgment Receipt",
+        documentLabel: setting?.documentLabel ?? "Payment Receipt",
         sourceType: params.sourceType,
         loanTransactionId: params.loanTransactionId,
         depositTransactionId: params.depositTransactionId,

@@ -53,7 +53,7 @@ CREATE TABLE "receipt_sequence_counter" (
 -- CreateTable
 CREATE TABLE "receipt_settings" (
     "id" TEXT NOT NULL,
-    "document_label" TEXT NOT NULL DEFAULT 'Acknowledgment Receipt',
+    "document_label" TEXT NOT NULL DEFAULT 'Payment Receipt',
     "updated_at" TIMESTAMP(3) NOT NULL,
     "updated_by" TEXT,
 
@@ -86,7 +86,7 @@ ALTER TABLE "receipts" ADD CONSTRAINT "receipts_member_id_fkey" FOREIGN KEY ("me
 
 -- Seed the single counter row (starts at 0 — the first issued receipt
 -- becomes sequence_number 1) and the single settings row (default
--- label "Acknowledgment Receipt", not "Official Receipt" — see
+-- label "Payment Receipt", not "Official Receipt" — see
 -- ReceiptSetting's schema comment).
 INSERT INTO "receipt_sequence_counter" ("id", "last_number") VALUES (gen_random_uuid(), 0);
-INSERT INTO "receipt_settings" ("id", "document_label", "updated_at") VALUES (gen_random_uuid(), 'Acknowledgment Receipt', CURRENT_TIMESTAMP);
+INSERT INTO "receipt_settings" ("id", "document_label", "updated_at") VALUES (gen_random_uuid(), 'Payment Receipt', CURRENT_TIMESTAMP);

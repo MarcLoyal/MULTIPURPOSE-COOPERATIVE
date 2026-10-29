@@ -691,13 +691,13 @@ model ReceiptSequenceCounter {
 }
 
 // Single-row setting: the label printed on a receipt (e.g.
-// "Acknowledgment Receipt"). Deliberately NOT "Official Receipt" by
+// "Payment Receipt"). Deliberately NOT "Official Receipt" by
 // default — that term has specific BIR CAS/ATP implications under the
 // EOPT Act this cooperative hasn't confirmed yet. Editable here once
 // the cooperative's accountant does. See README's open questions.
 model ReceiptSetting {
   id            String   @id @default(uuid())
-  documentLabel String   @default("Acknowledgment Receipt") @map("document_label")
+  documentLabel String   @default("Payment Receipt") @map("document_label")
   updatedAt     DateTime @updatedAt @map("updated_at")
   updatedById   String?  @map("updated_by")
 

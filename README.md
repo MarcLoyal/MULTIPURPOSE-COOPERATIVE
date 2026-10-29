@@ -234,7 +234,7 @@ could be built, and what should be revisited with the actual cooperative:
 6. **Receipt BIR compliance (CAS/ATP, EOPT Act)** — *unconfirmed.* Loan
    repayment, deposit, and share capital receipts (`server/src/modules/
    receipts/`) print a configurable document label, defaulting to
-   "Acknowledgment Receipt" rather than "Official Receipt" — that term
+   "Payment Receipt" rather than "Official Receipt" — that term
    has specific implications under BIR's Computerized Accounting
    System (CAS) / Authority to Print (ATP) rules and the Ease of Paying
    Taxes (EOPT) Act's invoicing requirements, which this cooperative's
