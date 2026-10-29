@@ -369,6 +369,26 @@ export type IncomeStatement = {
   netSurplus: number;
 };
 
+export type BalanceSheetRow = {
+  accountCode: string;
+  accountLabel: string;
+  element: "asset" | "liability" | "equity";
+  isContra: boolean;
+  amount: number;
+};
+
+export type BalanceSheet = {
+  asOf: string;
+  assetRows: BalanceSheetRow[];
+  liabilityRows: BalanceSheetRow[];
+  equityRows: BalanceSheetRow[];
+  unclosedNetSurplus: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  totalEquity: number;
+  balanced: boolean;
+};
+
 export type DepositType = "savings" | "time";
 export type DepositComputationBasis =
   | "daily_balance"

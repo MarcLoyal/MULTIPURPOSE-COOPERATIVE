@@ -15,6 +15,7 @@ import { CashPage } from "./pages/CashPage";
 import { LedgerPage } from "./pages/LedgerPage";
 import { TrialBalancePage } from "./pages/TrialBalancePage";
 import { IncomeStatementPage } from "./pages/IncomeStatementPage";
+import { BalanceSheetPage } from "./pages/BalanceSheetPage";
 import { AllowanceReportPage } from "./pages/AllowanceReportPage";
 import { AllowanceSettingsPage } from "./pages/AllowanceSettingsPage";
 import { DepositsPage } from "./pages/DepositsPage";
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="/ledger" element={<LedgerPage />} />
             <Route path="/trial-balance" element={<TrialBalancePage />} />
             <Route path="/income-statement" element={<IncomeStatementPage />} />
+            <Route path="/balance-sheet" element={<BalanceSheetPage />} />
             <Route path="/fiscal-years" element={<FiscalYearsPage />} />
             <Route path="/fiscal-years/:id" element={<FiscalYearDetailPage />} />
             <Route path="/allowance-report" element={<AllowanceReportPage />} />

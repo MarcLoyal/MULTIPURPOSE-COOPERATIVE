@@ -142,6 +142,93 @@ export async function getIncomeStatement(from?: Date, to?: Date) {
   };
 }
 
+/**
+ * Statement of Financial Condition (balance sheet) as of a point in
+ * time — a snapshot, not a period statement like getIncomeStatement.
+ * Asset/liability/equity accounts carry their cumulative balance
+ * directly. Revenue/expense accounts don't belong on a balance sheet
+ * at all once closed, but this app only zeroes them out at an
+ * explicit fiscal-year close (fiscalYears.routes.ts) — between closes
+ * they sit on the ledger with live nonzero balances that the books
+ * haven't moved into equity yet. Folding their net (same net-surplus
+ * computation as getIncomeStatement) into equity as a labeled
+ * "Current Period Net Surplus (Unclosed)" line is what actually makes
+ * Assets = Liabilities + Equity hold at any arbitrary moment — the
+ * standard treatment for an interim balance sheet pulled before
+ * formal year-end closing entries are posted.
+ *
+ * A contra account (isContra — e.g. 11242 Allowance for Probable
+ * Losses, a contra-asset; 30120/30131 Subscription Receivable/Treasury
+ * Shares, contra-equity) moves opposite its element's usual direction
+ * by design, so each row's normalBalance-signed `amount` is positive
+ * in that account's own "ordinary" direction but must be SUBTRACTED,
+ * not added, when rolling up the section total — the `isContra` flag
+ * on each row is what the totals below (and the client's rendering)
+ * key off of.
+ */
+export async function getBalanceSheet(asOf?: Date) {
+  const cutoff = asOf ?? new Date();
+  const [sums, accounts] = await Promise.all([
+    prisma.ledgerEntry.groupBy({
+      by: ["accountCode"],
+      where: { entryDate: { lte: cutoff } },
+      _sum: { debit: true, credit: true },
+    }),
+    prisma.account.findMany({
+      select: { code: true, label: true, element: true, normalBalance: true, isContra: true },
+    }),
+  ]);
+
+  const sumByCode = new Map(sums.map((s) => [s.accountCode, s]));
+
+  const allRows = accounts
+    .map((account) => {
+      const sum = sumByCode.get(account.code);
+      const debit = Number(sum?._sum.debit ?? 0);
+      const credit = Number(sum?._sum.credit ?? 0);
+      const amount = account.normalBalance === "credit" ? credit - debit : debit - credit;
+      return {
+        accountCode: account.code,
+        accountLabel: account.label,
+        element: account.element,
+        isContra: account.isContra,
+        amount,
+      };
+    })
+    .filter((row) => row.amount !== 0)
+    .sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
+  const signedForTotal = (row: (typeof allRows)[number]) => (row.isContra ? -row.amount : row.amount);
+
+  const assetRows = allRows.filter((r) => r.element === "asset");
+  const liabilityRows = allRows.filter((r) => r.element === "liability");
+  const equityRows = allRows.filter((r) => r.element === "equity");
+  const revenueRows = allRows.filter((r) => r.element === "revenue");
+  const expenseRows = allRows.filter((r) => r.element === "expense");
+
+  const totalRevenue = revenueRows.reduce((sum, r) => sum + r.amount, 0);
+  const totalExpense = expenseRows.reduce((sum, r) => sum + r.amount, 0);
+  const unclosedNetSurplus = round2ForLedger(totalRevenue - totalExpense);
+
+  const totalAssets = round2ForLedger(assetRows.reduce((sum, r) => sum + signedForTotal(r), 0));
+  const totalLiabilities = round2ForLedger(liabilityRows.reduce((sum, r) => sum + signedForTotal(r), 0));
+  const totalEquity = round2ForLedger(
+    equityRows.reduce((sum, r) => sum + signedForTotal(r), 0) + unclosedNetSurplus
+  );
+
+  return {
+    asOf: cutoff,
+    assetRows,
+    liabilityRows,
+    equityRows,
+    unclosedNetSurplus,
+    totalAssets,
+    totalLiabilities,
+    totalEquity,
+    balanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01,
+  };
+}
+
 function round2ForLedger(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }

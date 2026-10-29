@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
-import { getIncomeStatement, getTrialBalance, postLedgerBatch } from "../../lib/ledger";
+import { getBalanceSheet, getIncomeStatement, getTrialBalance, postLedgerBatch } from "../../lib/ledger";
 import { writeAuditLog } from "../../lib/audit";
 import { ACCOUNTS } from "../../lib/accounts";
 import { computeAging, computeLoanSchedule } from "../../lib/loanSchedule";
@@ -70,6 +70,14 @@ accountingRouter.get("/income-statement", async (req, res) => {
   const { from, to } = req.query as { from?: string; to?: string };
   const statement = await getIncomeStatement(from ? new Date(from) : undefined, to ? new Date(to) : undefined);
   res.json(statement);
+});
+
+// Statement of Financial Condition — see lib/ledger.ts:getBalanceSheet.
+// ?asOf is optional, same convention as /ledger and /income-statement;
+// omitted means right now.
+accountingRouter.get("/balance-sheet", async (req, res) => {
+  const { asOf } = req.query as { asOf?: string };
+  res.json(await getBalanceSheet(asOf ? new Date(asOf) : undefined));
 });
 
 /**
