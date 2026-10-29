@@ -16,8 +16,10 @@ const createTxnSchema = z.object({
   amount: z.coerce.number().positive(),
 });
 
-// Deposits into share capital (money coming in). Withdrawals/transfers reduce it.
-const INFLOW_TYPES = new Set(["subscription", "additional_purchase", "dividend"]);
+// Deposits into share capital (money coming in). Withdrawals/transfers
+// reduce it. Exported so fiscalYears.routes.ts can replay the same
+// balance-history logic when computing average share months.
+export const INFLOW_TYPES = new Set(["subscription", "additional_purchase", "dividend"]);
 
 async function recomputeBalance(tx: any, accountId: string) {
   const posted = await tx.shareCapitalTransaction.findMany({

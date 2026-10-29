@@ -215,8 +215,10 @@ export function FiscalYearDetailPage() {
               <dd className="text-right">{formatCurrency(divPreviewPatronage)}</dd>
             </dl>
             <p className="text-xs text-slate-400 mt-2">
-              Interest on Share Capital splits by each member's current share capital balance; Patronage Refund
-              splits by each member's loan interest paid during this fiscal year's period.
+              Interest on Share Capital splits by each member's average share capital held during this fiscal
+              year's period (weighted by days held, i.e. average share months) — not their balance today, so a
+              deposit made late in the period earns proportionally less. Patronage Refund splits by each member's
+              loan interest paid during the same period.
             </p>
           </div>
           <button

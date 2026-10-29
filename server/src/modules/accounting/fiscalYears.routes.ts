@@ -7,6 +7,7 @@ import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch, getIncomeStatement } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
 import { round2, computeLoanSchedule, splitRepayment } from "../../lib/loanSchedule";
+import { INFLOW_TYPES } from "../shareCapital/shareCapital.routes";
 
 export const fiscalYearsRouter = Router();
 fiscalYearsRouter.use(requireAuth);
@@ -76,6 +77,66 @@ async function computeInterestPaidByMember(
     }
   }
   return interestByMember;
+}
+
+/**
+ * Each member's average share capital during [periodStart, periodEnd],
+ * weighted by the number of days each balance level was held — the CDA
+ * "average share months" basis for interest on share capital (ISC rate x
+ * average share months), computed in days rather than discrete months.
+ * That's a strictly more precise version of the same idea (no calendar-
+ * month-length irregularities) and produces an identical proportional
+ * split across members regardless of which time unit is used, since the
+ * same days-per-month conversion would apply uniformly to every member.
+ *
+ * Replays each account's posted transaction history (same INFLOW_TYPES
+ * classification shareCapital.routes.ts's own recomputeBalance uses) to
+ * reconstruct the balance at periodStart, then walks every posted
+ * transaction landing inside the period, accumulating balance x days-held
+ * for each interval between balance changes. A member who deposits at
+ * year-end holds that balance for very few days, so it contributes very
+ * little to their total — exactly the point: they shouldn't earn the same
+ * interest as a member who held the same balance all year.
+ */
+async function computeAverageShareCapitalByMember(
+  periodStart: Date | undefined,
+  periodEnd: Date
+): Promise<Map<string, number>> {
+  const accounts = await prisma.shareCapitalAccount.findMany({
+    include: { transactions: { where: { status: "posted" }, orderBy: { createdAt: "asc" } } },
+  });
+
+  // No prior fiscal year — weight from the beginning of records. Safe as
+  // a sentinel: no account has a nonzero balance before its own first
+  // transaction, so a window starting before that contributes nothing
+  // extra regardless of how far back it nominally starts.
+  const windowStart = periodStart ?? new Date(0);
+  const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+  const shareDaysByMember = new Map<string, number>();
+  for (const account of accounts) {
+    let balance = 0;
+    for (const t of account.transactions) {
+      if (t.createdAt >= windowStart) break;
+      balance += INFLOW_TYPES.has(t.type) ? Number(t.amount) : -Number(t.amount);
+    }
+
+    let cursor = windowStart;
+    let shareDays = 0;
+    for (const t of account.transactions) {
+      if (t.createdAt < windowStart || t.createdAt > periodEnd) continue;
+      const days = (t.createdAt.getTime() - cursor.getTime()) / MS_PER_DAY;
+      shareDays += balance * days;
+      balance += INFLOW_TYPES.has(t.type) ? Number(t.amount) : -Number(t.amount);
+      cursor = t.createdAt;
+    }
+    shareDays += balance * ((periodEnd.getTime() - cursor.getTime()) / MS_PER_DAY);
+
+    if (shareDays > 0) {
+      shareDaysByMember.set(account.memberId, round2((shareDaysByMember.get(account.memberId) ?? 0) + shareDays));
+    }
+  }
+  return shareDaysByMember;
 }
 
 fiscalYearsRouter.get("/", async (_req, res) => {
@@ -345,8 +406,11 @@ fiscalYearsRouter.post(
 
     const periodStart = await getPeriodStart(fiscalYear);
 
-    const shareAccounts = await prisma.shareCapitalAccount.findMany({ where: { balance: { gt: 0 } } });
-    const totalShareCapital = shareAccounts.reduce((sum, a) => sum + Number(a.balance), 0);
+    const shareDaysByMember =
+      shareCapitalInterestAmount > 0
+        ? await computeAverageShareCapitalByMember(periodStart, fiscalYear.yearEndDate)
+        : new Map<string, number>();
+    const totalShareDays = Array.from(shareDaysByMember.values()).reduce((sum, v) => sum + v, 0);
 
     const interestByMember =
       patronageRefundAmount > 0 ? await computeInterestPaidByMember(periodStart, fiscalYear.yearEndDate) : new Map<string, number>();
@@ -361,11 +425,11 @@ fiscalYearsRouter.post(
     // before-rounding target, or the two would disagree by a cent.
     const perMember = new Map<string, number>();
     let actualShareCapitalInterestAmount = 0;
-    if (totalShareCapital > 0 && shareCapitalInterestAmount > 0) {
-      for (const acct of shareAccounts) {
-        const share = round2((shareCapitalInterestAmount * Number(acct.balance)) / totalShareCapital);
+    if (totalShareDays > 0 && shareCapitalInterestAmount > 0) {
+      for (const [memberId, shareDays] of shareDaysByMember) {
+        const share = round2((shareCapitalInterestAmount * shareDays) / totalShareDays);
         if (share > 0) {
-          perMember.set(acct.memberId, round2((perMember.get(acct.memberId) ?? 0) + share));
+          perMember.set(memberId, round2((perMember.get(memberId) ?? 0) + share));
           actualShareCapitalInterestAmount = round2(actualShareCapitalInterestAmount + share);
         }
       }
@@ -388,8 +452,8 @@ fiscalYearsRouter.post(
         distributed: false,
         unallocatedRemainder,
         message:
-          totalShareCapital === 0 && totalInterestPaid === 0
-            ? "No members hold share capital and no loan interest was paid this period — nothing to distribute."
+          totalShareDays === 0 && totalInterestPaid === 0
+            ? "No members held share capital and no loan interest was paid this period — nothing to distribute."
             : "Computed distribution is zero — nothing to distribute.",
       });
     }
