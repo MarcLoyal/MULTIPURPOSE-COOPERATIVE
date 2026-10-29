@@ -29,6 +29,7 @@ import { LoanLimitSettingsPage } from "./pages/LoanLimitSettingsPage";
 import { ReceiptSettingsPage } from "./pages/ReceiptSettingsPage";
 import { ReceiptPrintPage } from "./pages/ReceiptPrintPage";
 import { MemberStatementPage } from "./pages/MemberStatementPage";
+import { CdaDataPackPage } from "./pages/CdaDataPackPage";
 
 // Staff and member logins are two entirely separate route trees, each
 // behind its own guard that redirects the wrong role away before its
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="/fiscal-years" element={<FiscalYearsPage />} />
             <Route path="/fiscal-years/:id" element={<FiscalYearDetailPage />} />
             <Route path="/allowance-report" element={<AllowanceReportPage />} />
+            <Route path="/cda-data-pack" element={<CdaDataPackPage />} />
             <Route path="/settings/allowance-rates" element={<AllowanceSettingsPage />} />
             <Route path="/settings/deposit-products" element={<DepositProductsSettingsPage />} />
             <Route path="/settings/loan-products" element={<LoanProductsSettingsPage />} />

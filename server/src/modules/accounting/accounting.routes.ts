@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { getBalanceSheet, getIncomeStatement, getTrialBalance, postLedgerBatch } from "../../lib/ledger";
+import { buildCdaDataPack } from "../../lib/cdaDataPack";
 import { writeAuditLog } from "../../lib/audit";
 import { ACCOUNTS } from "../../lib/accounts";
 import { computeAging, computeLoanSchedule } from "../../lib/loanSchedule";
@@ -78,6 +79,13 @@ accountingRouter.get("/income-statement", async (req, res) => {
 accountingRouter.get("/balance-sheet", async (req, res) => {
   const { asOf } = req.query as { asOf?: string };
   res.json(await getBalanceSheet(asOf ? new Date(asOf) : undefined));
+});
+
+// CDA Report Data Pack — see lib/cdaDataPack.ts's doc comment for what
+// this is (and isn't). Works for an open fiscal year too (preliminary,
+// as-of-now figures), not just a closed one.
+accountingRouter.get("/cda-data-pack/:fiscalYearId", async (req, res) => {
+  res.json(await buildCdaDataPack(req.params.fiscalYearId));
 });
 
 /**
