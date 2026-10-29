@@ -166,22 +166,43 @@ export async function getIncomeStatement(from?: Date, to?: Date) {
  * on each row is what the totals below (and the client's rendering)
  * key off of.
  */
-export async function getBalanceSheet(asOf?: Date) {
-  const cutoff = asOf ?? new Date();
+export type SignedAccountBalance = {
+  accountCode: string;
+  accountLabel: string;
+  element: "asset" | "liability" | "equity" | "revenue" | "expense";
+  isContra: boolean;
+  amount: number;
+};
+
+/**
+ * Every account's cumulative balance as of a date, signed so `amount`
+ * reads positive in that account's own "ordinary" direction (credit
+ * for a credit-normal account, debit for a debit-normal one) —
+ * callers that roll these up into a section total must subtract a
+ * contra row (isContra) rather than add it. Shared by getBalanceSheet
+ * (asset/liability/equity/revenue/expense as of one date) and
+ * getStatementOfChangesInEquity (equity only, as of two dates) so both
+ * use the exact same signing convention and never drift apart.
+ */
+export async function getSignedAccountBalances(
+  asOf: Date,
+  elements?: SignedAccountBalance["element"][]
+): Promise<SignedAccountBalance[]> {
   const [sums, accounts] = await Promise.all([
     prisma.ledgerEntry.groupBy({
       by: ["accountCode"],
-      where: { entryDate: { lte: cutoff } },
+      where: { entryDate: { lte: asOf } },
       _sum: { debit: true, credit: true },
     }),
     prisma.account.findMany({
+      where: elements ? { element: { in: elements } } : undefined,
       select: { code: true, label: true, element: true, normalBalance: true, isContra: true },
     }),
   ]);
 
   const sumByCode = new Map(sums.map((s) => [s.accountCode, s]));
 
-  const allRows = accounts
+  return accounts
     .map((account) => {
       const sum = sumByCode.get(account.code);
       const debit = Number(sum?._sum.debit ?? 0);
@@ -195,8 +216,12 @@ export async function getBalanceSheet(asOf?: Date) {
         amount,
       };
     })
-    .filter((row) => row.amount !== 0)
     .sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+}
+
+export async function getBalanceSheet(asOf?: Date) {
+  const cutoff = asOf ?? new Date();
+  const allRows = (await getSignedAccountBalances(cutoff)).filter((row) => row.amount !== 0);
 
   const signedForTotal = (row: (typeof allRows)[number]) => (row.isContra ? -row.amount : row.amount);
 
@@ -227,6 +252,84 @@ export async function getBalanceSheet(asOf?: Date) {
     totalEquity,
     balanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01,
   };
+}
+
+/**
+ * Statement of Changes in Equity for [periodStart, periodEnd] — each
+ * equity account's beginning balance, net movement during the period,
+ * and ending balance. periodStart undefined means "the very first
+ * fiscal year ever" (getPeriodStart's own convention), so beginning
+ * balances are all zero rather than queried.
+ *
+ * Expected to be called with a CLOSED fiscal year's own period, where
+ * revenue/expense accounts should already have been swept into equity
+ * by that year's close entries (fiscalYears.routes.ts). In practice
+ * that sweep isn't a hard guarantee — nothing stops a later ledger
+ * posting from landing with an entryDate inside an already-closed
+ * period (e.g. test fixtures, or a backdated correction) — so, exactly
+ * like getBalanceSheet, any revenue/expense net still sitting unswept
+ * as of a cutoff is folded into equity as a "Current Period Net
+ * Surplus (Unclosed)" row. This keeps totalEnding tied to
+ * getBalanceSheet(periodEnd).totalEquity unconditionally, not just in
+ * the clean-close case.
+ */
+export async function getStatementOfChangesInEquity(periodStart: Date | undefined, periodEnd: Date) {
+  const beginningCutoff = periodStart ? new Date(periodStart.getTime() - 1) : undefined;
+  const [beginningEquityRows, endingEquityRows, beginningActivityRows, endingActivityRows] = await Promise.all([
+    beginningCutoff ? getSignedAccountBalances(beginningCutoff, ["equity"]) : Promise.resolve([]),
+    getSignedAccountBalances(periodEnd, ["equity"]),
+    beginningCutoff ? getSignedAccountBalances(beginningCutoff, ["revenue", "expense"]) : Promise.resolve([]),
+    getSignedAccountBalances(periodEnd, ["revenue", "expense"]),
+  ]);
+
+  const unclosedNetSurplus = (rows: SignedAccountBalance[]) =>
+    rows.reduce((sum, r) => sum + (r.element === "expense" ? -r.amount : r.amount), 0);
+  const beginningUnclosed = round2ForLedger(unclosedNetSurplus(beginningActivityRows));
+  const endingUnclosed = round2ForLedger(unclosedNetSurplus(endingActivityRows));
+
+  const beginningByCode = new Map(beginningEquityRows.map((r) => [r.accountCode, r]));
+  const endingByCode = new Map(endingEquityRows.map((r) => [r.accountCode, r]));
+  const allCodes = new Set([...beginningByCode.keys(), ...endingByCode.keys()]);
+
+  const signedForTotal = (amount: number, isContra: boolean) => (isContra ? -amount : amount);
+
+  const rows = Array.from(allCodes)
+    .map((accountCode) => {
+      const beginning = beginningByCode.get(accountCode);
+      const ending = endingByCode.get(accountCode);
+      const reference = ending ?? beginning!;
+      const beginningBalance = beginning?.amount ?? 0;
+      const endingBalance = ending?.amount ?? 0;
+      return {
+        accountCode,
+        accountLabel: reference.accountLabel,
+        isContra: reference.isContra,
+        beginningBalance,
+        netChange: round2ForLedger(endingBalance - beginningBalance),
+        endingBalance,
+      };
+    })
+    .filter((row) => row.beginningBalance !== 0 || row.endingBalance !== 0 || row.netChange !== 0)
+    .sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
+  if (beginningUnclosed !== 0 || endingUnclosed !== 0) {
+    rows.push({
+      accountCode: "",
+      accountLabel: "Current Period Net Surplus (Unclosed)",
+      isContra: false,
+      beginningBalance: beginningUnclosed,
+      netChange: round2ForLedger(endingUnclosed - beginningUnclosed),
+      endingBalance: endingUnclosed,
+    });
+  }
+
+  const totalBeginning = round2ForLedger(
+    rows.reduce((sum, r) => sum + signedForTotal(r.beginningBalance, r.isContra), 0)
+  );
+  const totalNetChange = round2ForLedger(rows.reduce((sum, r) => sum + signedForTotal(r.netChange, r.isContra), 0));
+  const totalEnding = round2ForLedger(rows.reduce((sum, r) => sum + signedForTotal(r.endingBalance, r.isContra), 0));
+
+  return { periodStart: periodStart ?? null, periodEnd, rows, totalBeginning, totalNetChange, totalEnding };
 }
 
 function round2ForLedger(n: number): number {

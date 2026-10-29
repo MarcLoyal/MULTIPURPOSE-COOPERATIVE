@@ -245,6 +245,13 @@ could be built, and what should be revisited with the actual cooperative:
    "Official Receipt" and the cooperative should not rely on this
    app's receipts as BIR-compliant invoices until that's resolved.
    Change the label at Settings → Receipt Label once it is.
+7. **BIR Certificate of Tax Exemption (CTE)** — *unconfirmed.* Does this
+   cooperative currently hold a valid BIR CTE? That status determines
+   whether it also has to file the Annual Tax Incentive Report (ATIR) and
+   Annual Benefits Report (ABR) alongside its CDA annual report — neither
+   of which this app produces. (The CDA Report Data Pack page assembles
+   supporting figures for the auditor/CAIS filing; it is explicitly not
+   the ATIR, the ABR, or the CAPR itself.)
 
 ## Non-goals for this MVP (spec section 7)
 

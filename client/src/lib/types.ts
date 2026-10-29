@@ -470,3 +470,57 @@ export type MemberStatement = {
     transactions: { id: string; type: DepositTxnType; amount: number; balanceAfter: number; createdAt: string }[];
   }[];
 };
+
+export type EquityChangeRow = {
+  accountCode: string;
+  accountLabel: string;
+  isContra: boolean;
+  beginningBalance: number;
+  netChange: number;
+  endingBalance: number;
+};
+
+export type StatementOfChangesInEquity = {
+  periodStart: string | null;
+  periodEnd: string;
+  rows: EquityChangeRow[];
+  totalBeginning: number;
+  totalNetChange: number;
+  totalEnding: number;
+};
+
+export type CdaDataPack = {
+  isUnaudited: true;
+  fiscalYear: { id: string; yearEndDate: string; periodStart: string | null };
+  generatedAt: string;
+  balanceSheet: BalanceSheet;
+  incomeStatement: IncomeStatement;
+  equityStatement: StatementOfChangesInEquity;
+  trialBalance: { asOf: string; rows: TrialBalanceRow[]; totals: { totalDebit: number; totalCredit: number }; balanced: boolean };
+  statutoryFundAllocation: StatutoryFundAllocation | null;
+  dividendDistribution: DividendDistribution | null;
+  membership: {
+    newMembersDuringPeriod: number;
+    totalMembersCurrent: number;
+    currentCountsByStatus: Record<string, number>;
+    currentCountsByClass: Record<string, number>;
+  };
+  shareCapital: {
+    totalPaidUpAtYearEnd: number;
+    subscriptionsDuringPeriod: number;
+    withdrawalsDuringPeriod: number;
+    perMemberBalancesAtYearEnd: { memberId: string; memberNumber: string; fullName: string; balance: number }[];
+  };
+  loans: {
+    releasedDuringPeriod: number;
+    collectedDuringPeriod: number;
+    outstandingPortfolioAtYearEnd: number;
+    currentStatusBreakdown: { status: string; count: number }[];
+    allowanceForProbableLossesAtYearEnd: number;
+  };
+  deposits: {
+    depositsDuringPeriod: number;
+    withdrawalsDuringPeriod: number;
+    endingBalancesByProduct: { accountCode: string; label: string; amount: number }[];
+  };
+};
