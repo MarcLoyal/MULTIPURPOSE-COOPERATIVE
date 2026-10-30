@@ -19,4 +19,9 @@ export const env = {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
+  // Intentionally not `required()` — unset means first-time setup can
+  // never succeed (every attempt fails closed, see setup.routes.ts),
+  // not that the server refuses to start. Set once in Vercel, given
+  // privately to the cooperative, removable after setup completes.
+  setupCode: process.env.SETUP_CODE,
 };

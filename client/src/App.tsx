@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Layout } from "./components/Layout";
 import { PortalLayout } from "./components/PortalLayout";
 import { LoginPage } from "./pages/LoginPage";
+import { SetupPage } from "./pages/SetupPage";
 import { PortalPage } from "./pages/PortalPage";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -65,6 +66,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/setup" element={<SetupPage />} />
           <Route element={<MemberArea />}>
             <Route path="/portal" element={<PortalPage />} />
             <Route path="/portal/change-password" element={<ChangePasswordPage />} />

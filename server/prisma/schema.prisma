@@ -718,3 +718,39 @@ model AuditLog {
   @@index([entityType, entityId])
   @@map("audit_logs")
 }
+
+// ---------------------------------------------------------------------------
+// First-time setup
+// ---------------------------------------------------------------------------
+
+// Created exactly once, by a successful POST /api/setup — its mere
+// existence IS the "setup has been completed" flag (setup.routes.ts's
+// GET /status checks `findFirst()`, nothing fancier). Deliberately NOT
+// derived from "does an admin-role User exist" — the seeded demo admin
+// (prisma/seed.ts, the @coop.test accounts) would otherwise make a
+// freshly deployed, never-set-up instance look already set up. And
+// because this check doesn't care whether admins still exist, deleting
+// every admin later can never re-open setup — "permanently disabled,
+// even with the code" holds regardless of what happens to the account
+// setup created.
+model CooperativeProfile {
+  id                    String   @id @default(uuid())
+  name                  String
+  address               String
+  cdaRegistrationNumber String   @map("cda_registration_number")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@map("cooperative_profile")
+}
+
+// One row per FAILED setup-code attempt — successful setup never reaches
+// this table at all (the CooperativeProfile row it creates is itself the
+// permanent lock, so there's nothing left to rate-limit after that).
+// setup.routes.ts counts rows in a trailing time window to lock out
+// further guesses; nothing else reads this table.
+model SetupAttempt {
+  id          String   @id @default(uuid())
+  attemptedAt DateTime @default(now()) @map("attempted_at")
+
+  @@map("setup_attempts")
+}

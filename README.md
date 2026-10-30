@@ -148,6 +148,23 @@ same Express `app` with `serverless-http` — local dev still uses
   serverless container reuses its connection instead of opening a new one
   per invocation.
 
+### First-time setup (`SETUP_CODE`)
+
+The cooperative creates its own first admin account at `/setup` (see
+`server/src/modules/setup/setup.routes.ts`) instead of you seeding one by
+hand. That page is only reachable — and the one-time `POST /api/setup`
+it calls only succeeds — with the correct `SETUP_CODE`, a secret you set
+as an environment variable and hand to the cooperative privately (Slack,
+a phone call, anything other than a public channel). Unset entirely, no
+setup code can ever be "correct," so the endpoint fails closed rather
+than leaving setup wide open.
+
+Add `SETUP_CODE` to the backend's environment variables (same place as
+`DATABASE_URL`/`JWT_SECRET`/etc.) with any long random string. Once the
+cooperative completes setup, the page is permanently disabled — the
+`SETUP_CODE` variable can be left in place (harmless, since setup can
+never run a second time) or removed.
+
 ## What's implemented (MVP scope, spec section 6)
 
 - **Membership** — register, edit (audit-logged with before/after), status
