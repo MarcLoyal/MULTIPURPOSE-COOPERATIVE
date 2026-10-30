@@ -5,6 +5,62 @@ import { MemberStatement } from "../lib/types";
 import { Badge } from "../components/Badge";
 import { formatCurrency, formatDate, formatDateTime, humanizeEnum } from "../lib/format";
 
+type Row = { id: string; date: string; type: string; amount: number; balanceAfter?: number };
+
+/**
+ * One row set, two renderings: cards on screen (phone-first — a 4-column
+ * table is cramped at phone width), an actual <table> for print (a
+ * financial statement someone prints or saves as PDF reads better as a
+ * table, and print output isn't viewed on a phone screen anyway). Only
+ * one of the two is ever visible at a time — "hidden"/"print:hidden" and
+ * "hidden print:block" are each other's exact opposite, never both shown.
+ */
+function TransactionRows({ rows, emptyText }: { rows: Row[]; emptyText: string }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-slate-500">{emptyText}</p>;
+  }
+  return (
+    <>
+      <div className="space-y-2 print:hidden">
+        {rows.map((t) => (
+          <div key={t.id} className="border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-900">{humanizeEnum(t.type)}</p>
+              <p className="text-xs text-slate-500">{formatDate(t.date)}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-sm font-medium text-slate-900">{formatCurrency(t.amount)}</p>
+              {t.balanceAfter !== undefined && (
+                <p className="text-xs text-slate-500">Balance: {formatCurrency(t.balanceAfter)}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <table className="w-full text-sm hidden print:block">
+        <thead className="bg-slate-100 text-slate-600 text-left">
+          <tr>
+            <th className="px-3 py-1.5">Date</th>
+            <th className="px-3 py-1.5">Type</th>
+            <th className="px-3 py-1.5 text-right">Amount</th>
+            {rows[0]?.balanceAfter !== undefined && <th className="px-3 py-1.5 text-right">Balance After</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t) => (
+            <tr key={t.id} className="border-t border-slate-100">
+              <td className="px-3 py-1.5">{formatDate(t.date)}</td>
+              <td className="px-3 py-1.5">{humanizeEnum(t.type)}</td>
+              <td className="px-3 py-1.5 text-right">{formatCurrency(t.amount)}</td>
+              {t.balanceAfter !== undefined && <td className="px-3 py-1.5 text-right">{formatCurrency(t.balanceAfter)}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 /**
  * Printable/downloadable statement of account. Reused on two routes:
  * /members/:id/statement (staff, any member) and /portal/statement
@@ -27,7 +83,7 @@ export function MemberStatementPage() {
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto mt-12 text-center">
+      <div className="max-w-2xl mx-auto mt-12 text-center px-4">
         <p className="text-rose-600 mb-3">{error}</p>
         <Link to={id ? `/members/${id}` : "/portal"} className="text-sm text-slate-500 hover:underline">
           ← Back
@@ -39,20 +95,28 @@ export function MemberStatementPage() {
   if (!statement) return <p className="text-slate-500 mt-12 text-center">Loading…</p>;
 
   return (
-    <div className="max-w-2xl mx-auto py-10 print:py-0">
-      <div className="flex justify-between items-center mb-6 print:hidden">
-        <Link to={id ? `/members/${id}` : "/portal"} className="text-sm text-slate-500 hover:underline">
-          ← Back
-        </Link>
+    <div className="max-w-2xl mx-auto py-6 sm:py-10 print:py-0">
+      {/* Only the staff route has a parent page to go "back" to in-app;
+          the portal route is reached via the bottom nav, not a back
+          link, so this row is staff-only — the Print button stays for
+          everyone. */}
+      <div className="flex justify-between items-center mb-6 px-1 print:hidden">
+        {id ? (
+          <Link to={`/members/${id}`} className="text-sm text-slate-500 hover:underline py-2">
+            ← Back
+          </Link>
+        ) : (
+          <span />
+        )}
         <button
           onClick={() => window.print()}
-          className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800"
+          className="rounded-md bg-slate-900 text-white text-sm px-4 py-2.5 hover:bg-slate-800"
         >
           Print
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-8 print:border-0 print:rounded-none print:p-0 space-y-8">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 print:border-0 print:rounded-none print:p-0 space-y-8">
         <div className="text-center border-b border-slate-200 pb-6">
           <p className="font-semibold text-lg text-slate-900">Multipurpose Cooperative</p>
           <p className="text-sm text-slate-500">Statement of Account</p>
@@ -79,32 +143,15 @@ export function MemberStatementPage() {
               Balance: {statement.shareCapital ? formatCurrency(statement.shareCapital.balance) : formatCurrency(0)}
             </p>
           </div>
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-600 text-left">
-              <tr>
-                <th className="px-3 py-1.5">Date</th>
-                <th className="px-3 py-1.5">Type</th>
-                <th className="px-3 py-1.5 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!statement.shareCapital || statement.shareCapital.transactions.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-2 text-slate-500" colSpan={3}>
-                    No share capital transactions.
-                  </td>
-                </tr>
-              ) : (
-                statement.shareCapital.transactions.map((t) => (
-                  <tr key={t.id} className="border-t border-slate-100">
-                    <td className="px-3 py-1.5">{formatDate(t.createdAt)}</td>
-                    <td className="px-3 py-1.5">{humanizeEnum(t.type)}</td>
-                    <td className="px-3 py-1.5 text-right">{formatCurrency(t.amount)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <TransactionRows
+            rows={(statement.shareCapital?.transactions ?? []).map((t) => ({
+              id: t.id,
+              date: t.createdAt,
+              type: t.type,
+              amount: t.amount,
+            }))}
+            emptyText="No share capital transactions."
+          />
         </section>
 
         <section>
@@ -112,35 +159,25 @@ export function MemberStatementPage() {
           {statement.loans.length === 0 ? (
             <p className="text-sm text-slate-500">No loans.</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {statement.loans.map((loan) => (
                 <div key={loan.id}>
-                  <div className="flex justify-between items-baseline mb-1">
+                  <div className="flex justify-between items-baseline mb-2">
                     <p className="text-sm font-medium">
                       {loan.loanProduct} — {formatCurrency(loan.principalAmount)}
                     </p>
                     <Badge value={loan.status} />
                   </div>
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-100 text-slate-600 text-left">
-                      <tr>
-                        <th className="px-3 py-1.5">Date</th>
-                        <th className="px-3 py-1.5">Type</th>
-                        <th className="px-3 py-1.5 text-right">Amount</th>
-                        <th className="px-3 py-1.5 text-right">Balance After</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loan.transactions.map((t) => (
-                        <tr key={t.id} className="border-t border-slate-100">
-                          <td className="px-3 py-1.5">{formatDate(t.createdAt)}</td>
-                          <td className="px-3 py-1.5 capitalize">{t.type}</td>
-                          <td className="px-3 py-1.5 text-right">{formatCurrency(t.amount)}</td>
-                          <td className="px-3 py-1.5 text-right">{formatCurrency(t.balanceAfter)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <TransactionRows
+                    rows={loan.transactions.map((t) => ({
+                      id: t.id,
+                      date: t.createdAt,
+                      type: t.type,
+                      amount: t.amount,
+                      balanceAfter: t.balanceAfter,
+                    }))}
+                    emptyText="No transactions."
+                  />
                 </div>
               ))}
             </div>
@@ -152,35 +189,25 @@ export function MemberStatementPage() {
           {statement.deposits.length === 0 ? (
             <p className="text-sm text-slate-500">No deposit accounts.</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {statement.deposits.map((account) => (
                 <div key={account.id}>
-                  <div className="flex justify-between items-baseline mb-1">
+                  <div className="flex justify-between items-baseline mb-2">
                     <p className="text-sm font-medium">
                       {account.productName} — {formatCurrency(account.balance)}
                     </p>
                     <Badge value={account.status} />
                   </div>
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-100 text-slate-600 text-left">
-                      <tr>
-                        <th className="px-3 py-1.5">Date</th>
-                        <th className="px-3 py-1.5">Type</th>
-                        <th className="px-3 py-1.5 text-right">Amount</th>
-                        <th className="px-3 py-1.5 text-right">Balance After</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {account.transactions.map((t) => (
-                        <tr key={t.id} className="border-t border-slate-100">
-                          <td className="px-3 py-1.5">{formatDate(t.createdAt)}</td>
-                          <td className="px-3 py-1.5">{humanizeEnum(t.type)}</td>
-                          <td className="px-3 py-1.5 text-right">{formatCurrency(t.amount)}</td>
-                          <td className="px-3 py-1.5 text-right">{formatCurrency(t.balanceAfter)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <TransactionRows
+                    rows={account.transactions.map((t) => ({
+                      id: t.id,
+                      date: t.createdAt,
+                      type: t.type,
+                      amount: t.amount,
+                      balanceAfter: t.balanceAfter,
+                    }))}
+                    emptyText="No transactions."
+                  />
                 </div>
               ))}
             </div>

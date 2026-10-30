@@ -56,7 +56,7 @@ export function ChangePasswordPage({ forced = false }: { forced?: boolean }) {
               required
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+              className="w-full rounded-md border border-slate-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-500"
             />
           </div>
           <div>
@@ -67,7 +67,7 @@ export function ChangePasswordPage({ forced = false }: { forced?: boolean }) {
               minLength={8}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+              className="w-full rounded-md border border-slate-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-500"
             />
           </div>
           <div>
@@ -78,14 +78,14 @@ export function ChangePasswordPage({ forced = false }: { forced?: boolean }) {
               minLength={8}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+              className="w-full rounded-md border border-slate-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-500"
             />
           </div>
           {error && <p className="text-sm text-rose-600">{error}</p>}
           <button
             type="submit"
             disabled={saving}
-            className="w-full rounded-md bg-slate-900 text-white py-2 text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
+            className="w-full rounded-md bg-slate-900 text-white py-3 text-base font-medium hover:bg-slate-800 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Change Password"}
           </button>

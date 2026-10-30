@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cooperative Automation MVP</title>
+
+    <!-- Installable member portal (PWA). The manifest covers Android/
+         Chrome; iOS Safari ignores most of it for "Add to Home Screen"
+         and needs these specific meta tags instead for standalone/
+         full-screen display and its own home-screen icon. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MPC Portal" />
   </head>
   <body>
     <div id="root"></div>
