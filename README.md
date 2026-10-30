@@ -252,6 +252,16 @@ could be built, and what should be revisited with the actual cooperative:
    of which this app produces. (The CDA Report Data Pack page assembles
    supporting figures for the auditor/CAIS filing; it is explicitly not
    the ATIR, the ABR, or the CAPR itself.)
+8. **Cash flow classification of member deposits** — *for the auditor to
+   confirm.* The Statement of Cash Flows (`server/src/lib/ledger.ts`'s
+   `getStatementOfCashFlows`) classifies member deposits and withdrawals
+   as **operating** activities, on the reasoning that deposit-taking is
+   this cooperative's core business, the same treatment banks and credit
+   unions use. Loans are classified as operating for the same reason.
+   Should the auditor prefer deposits classified under **financing**
+   instead (treating member deposits more like member capital/borrowings
+   than an operating inflow), that's a one-line change to
+   `CASH_LINE_CLASSIFICATION` in `lib/ledger.ts`.
 
 ## Non-goals for this MVP (spec section 7)
 
