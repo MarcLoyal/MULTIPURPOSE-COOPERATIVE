@@ -23,7 +23,7 @@ const SETTINGS_ROLES = ["manager", "accountant", "admin"];
 
 export function Layout() {
   const { user, logout } = useAuth();
-  const navItems = user && SETTINGS_ROLES.includes(user.role)
+  let navItems = user && SETTINGS_ROLES.includes(user.role)
     ? [
         ...NAV_ITEMS,
         { to: "/settings/allowance-rates", label: "Allowance Settings" },
@@ -34,6 +34,9 @@ export function Layout() {
         { to: "/settings/receipt-label", label: "Receipt Label" },
       ]
     : NAV_ITEMS;
+  if (user?.role === "admin") {
+    navItems = [...navItems, { to: "/settings/staff-users", label: "Staff Users" }];
+  }
 
   return (
     <div className="min-h-screen flex">
