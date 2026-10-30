@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: "/trial-balance", label: "Trial Balance" },
   { to: "/income-statement", label: "Income Statement" },
   { to: "/balance-sheet", label: "Statement of Financial Condition" },
+  { to: "/cash-flow-statement", label: "Statement of Cash Flows" },
   { to: "/fiscal-years", label: "Fiscal Years" },
   { to: "/allowance-report", label: "Allowance for Losses" },
   { to: "/cda-data-pack", label: "CDA Report Data Pack" },

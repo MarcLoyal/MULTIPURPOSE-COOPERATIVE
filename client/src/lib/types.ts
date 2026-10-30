@@ -489,6 +489,27 @@ export type StatementOfChangesInEquity = {
   totalEnding: number;
 };
 
+export type CashFlowRow = {
+  category: "operating" | "investing" | "financing";
+  label: string;
+  amount: number;
+};
+
+export type StatementOfCashFlows = {
+  periodStart: string | null;
+  periodEnd: string;
+  operatingRows: CashFlowRow[];
+  investingRows: CashFlowRow[];
+  financingRows: CashFlowRow[];
+  netOperating: number;
+  netInvesting: number;
+  netFinancing: number;
+  totalNetChange: number;
+  cashBeginning: number;
+  cashEnding: number;
+  balanced: boolean;
+};
+
 export type CdaDataPack = {
   isUnaudited: true;
   isPreliminary: boolean;
@@ -503,6 +524,7 @@ export type CdaDataPack = {
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
   equityStatement: StatementOfChangesInEquity;
+  cashFlowStatement: StatementOfCashFlows;
   trialBalance: { asOf: string; rows: TrialBalanceRow[]; totals: { totalDebit: number; totalCredit: number }; balanced: boolean };
   statutoryFundAllocation: StatutoryFundAllocation | null;
   dividendDistribution: DividendDistribution | null;
