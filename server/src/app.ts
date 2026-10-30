@@ -18,6 +18,7 @@ import { fiscalYearsRouter } from "./modules/accounting/fiscalYears.routes";
 import { portalRouter } from "./modules/portal/portal.routes";
 import { receiptsRouter } from "./modules/receipts/receipts.routes";
 import { usersRouter } from "./modules/users/users.routes";
+import { setupRouter } from "./modules/setup/setup.routes";
 
 export const app = express();
 
@@ -93,5 +94,6 @@ app.use("/api/accounting/fiscal-years", fiscalYearsRouter);
 app.use("/api/portal", portalRouter);
 app.use("/api/receipts", receiptsRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/setup", setupRouter);
 
 app.use(errorHandler);
