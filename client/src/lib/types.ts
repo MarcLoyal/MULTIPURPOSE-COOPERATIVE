@@ -9,6 +9,18 @@ export type CurrentUser = {
   mustChangePassword: boolean;
 };
 
+export type StaffRole = Exclude<UserRole, "member">;
+
+export type StaffUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: StaffRole;
+  status: "active" | "disabled";
+  mustChangePassword: boolean;
+  createdAt: string;
+};
+
 export type MemberLoginStatus = "active" | "disabled";
 
 export type MemberLogin = {

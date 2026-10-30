@@ -28,6 +28,7 @@ import { LoanProductsSettingsPage } from "./pages/LoanProductsSettingsPage";
 import { DividendSettingsPage } from "./pages/DividendSettingsPage";
 import { LoanLimitSettingsPage } from "./pages/LoanLimitSettingsPage";
 import { ReceiptSettingsPage } from "./pages/ReceiptSettingsPage";
+import { StaffUsersPage } from "./pages/StaffUsersPage";
 import { ReceiptPrintPage } from "./pages/ReceiptPrintPage";
 import { MemberStatementPage } from "./pages/MemberStatementPage";
 import { CdaDataPackPage } from "./pages/CdaDataPackPage";
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="/settings/dividend-rates" element={<DividendSettingsPage />} />
             <Route path="/settings/loan-limit" element={<LoanLimitSettingsPage />} />
             <Route path="/settings/receipt-label" element={<ReceiptSettingsPage />} />
+            <Route path="/settings/staff-users" element={<StaffUsersPage />} />
             <Route path="/receipts/:id" element={<ReceiptPrintPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
