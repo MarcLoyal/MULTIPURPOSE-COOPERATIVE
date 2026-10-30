@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { api, ApiError, setToken } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
-type Status = "checking" | "needed" | "already-done";
+type Status = "checking" | "available" | "unavailable";
 
 export function SetupPage() {
   const { refreshUser } = useAuth();
@@ -24,18 +24,21 @@ export function SetupPage() {
 
   useEffect(() => {
     api
-      .get<{ needsSetup: boolean }>("/setup/status")
-      .then((res) => setStatus(res.needsSetup ? "needed" : "already-done"))
-      .catch(() => setStatus("already-done"));
+      .get<{ setupAvailable: boolean }>("/setup/status")
+      .then((res) => setStatus(res.setupAvailable ? "available" : "unavailable"))
+      .catch(() => setStatus("unavailable"));
   }, []);
 
   if (status === "checking") {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-500">Loading…</div>;
   }
-  // Already set up — this page is permanently disabled once a first
-  // admin exists, even if someone has the setup code. Send them to the
-  // normal login instead of showing a form that would just 409.
-  if (status === "already-done") return <Navigate to="/login" replace />;
+  // Setup is either already done (even with the code, this page is
+  // permanently disabled once a first admin exists) or SETUP_CODE isn't
+  // configured for this environment (every submission would just fail
+  // closed) — either way, there's nothing to show here. Send them to the
+  // normal login, which is exactly how this page should behave when it's
+  // "completely disabled."
+  if (status === "unavailable") return <Navigate to="/login" replace />;
   if (done) return <Navigate to="/" replace />;
 
   async function handleSubmit(e: FormEvent) {

@@ -1,7 +1,7 @@
-import { FormEvent, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ApiError } from "../api/client";
+import { api, ApiError } from "../api/client";
 
 export function LoginPage() {
   const { user, login } = useAuth();
@@ -9,6 +9,21 @@ export function LoginPage() {
   const [password, setPassword] = useState("Password123!");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Defaults to false (not shown) so, until this resolves, the page looks
+  // exactly like it always has — the normal login must always work
+  // regardless of setup state, so this link is an addition to the login
+  // page, never a gate in front of it. See setup.routes.ts's doc comment
+  // on GET /status for why "no real admin yet" alone isn't enough to show
+  // this — SETUP_CODE must also be configured for this environment, or
+  // there'd be a link to a page that can only ever fail.
+  const [setupAvailable, setSetupAvailable] = useState(false);
+
+  useEffect(() => {
+    api
+      .get<{ setupAvailable: boolean }>("/setup/status")
+      .then((res) => setSetupAvailable(res.setupAvailable))
+      .catch(() => setSetupAvailable(false));
+  }, []);
 
   if (user) return <Navigate to={user.role === "member" ? "/portal" : "/"} replace />;
 
@@ -65,6 +80,13 @@ export function LoginPage() {
           <p>admin@coop.test · cashier@coop.test · credit@coop.test</p>
           <p>manager@coop.test · accountant@coop.test</p>
         </div>
+        {setupAvailable && (
+          <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+            <Link to="/setup" className="text-sm text-slate-600 underline hover:text-slate-900">
+              First time? Set up your cooperative
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

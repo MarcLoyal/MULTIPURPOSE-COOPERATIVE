@@ -30,9 +30,16 @@ export const setupRouter = Router();
 const FAILED_ATTEMPT_WINDOW_MINUTES = 15;
 const MAX_FAILED_ATTEMPTS = 5;
 
+// A single flag, not "needsSetup" plus "codeConfigured" separately — the
+// normal login must always work regardless of setup state (demo accounts
+// included, at all times), so the client has exactly one decision to
+// make: show a "set up your cooperative" link, or don't. Whether that's
+// because setup is already done or because SETUP_CODE was never
+// configured for this environment makes no difference to that decision,
+// and isn't worth exposing to an anonymous caller either way.
 setupRouter.get("/status", async (_req, res) => {
   const profile = await prisma.cooperativeProfile.findFirst({ select: { id: true } });
-  res.json({ needsSetup: !profile });
+  res.json({ setupAvailable: !profile && Boolean(env.setupCode) });
 });
 
 const setupSchema = z.object({
