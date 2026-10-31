@@ -754,3 +754,30 @@ model SetupAttempt {
 
   @@map("setup_attempts")
 }
+
+// ---------------------------------------------------------------------------
+// Opening balances import
+// ---------------------------------------------------------------------------
+
+// Created exactly once, by a successful opening-balances import — same
+// "its existence IS the permanent lock" pattern as CooperativeProfile
+// (see openingBalances.routes.ts). Blocked a second time regardless of
+// what happens to the data it created afterward. The summary counts are
+// for the one-line confirmation banner the UI shows once this exists;
+// the imported Members/LoanAccounts/etc. and their AuditLog rows are the
+// real durable record, not this row.
+model OpeningBalanceImport {
+  id                  String   @id @default(uuid())
+  cutoffDate          DateTime @map("cutoff_date")
+  membersImported     Int      @map("members_imported")
+  shareCapitalImported Int     @map("share_capital_imported")
+  loansImported       Int      @map("loans_imported")
+  depositsImported    Int      @map("deposits_imported")
+  otherLinesImported  Int      @map("other_lines_imported")
+  suspenseBalance     Decimal  @db.Decimal(18, 2) @map("suspense_balance")
+  performedById       String   @map("performed_by")
+  performedByName     String   @map("performed_by_name")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@map("opening_balance_imports")
+}

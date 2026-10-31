@@ -35,7 +35,11 @@ export function Layout() {
       ]
     : NAV_ITEMS;
   if (user?.role === "admin") {
-    navItems = [...navItems, { to: "/settings/staff-users", label: "Staff Users" }];
+    navItems = [
+      ...navItems,
+      { to: "/settings/staff-users", label: "Staff Users" },
+      { to: "/settings/opening-balances-import", label: "Opening Balances Import" },
+    ];
   }
 
   return (

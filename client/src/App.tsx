@@ -33,6 +33,7 @@ import { StaffUsersPage } from "./pages/StaffUsersPage";
 import { ReceiptPrintPage } from "./pages/ReceiptPrintPage";
 import { MemberStatementPage } from "./pages/MemberStatementPage";
 import { CdaDataPackPage } from "./pages/CdaDataPackPage";
+import { OpeningBalancesImportPage } from "./pages/OpeningBalancesImportPage";
 
 // Staff and member logins are two entirely separate route trees, each
 // behind its own guard that redirects the wrong role away before its
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="/settings/loan-limit" element={<LoanLimitSettingsPage />} />
             <Route path="/settings/receipt-label" element={<ReceiptSettingsPage />} />
             <Route path="/settings/staff-users" element={<StaffUsersPage />} />
+            <Route path="/settings/opening-balances-import" element={<OpeningBalancesImportPage />} />
             <Route path="/receipts/:id" element={<ReceiptPrintPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
