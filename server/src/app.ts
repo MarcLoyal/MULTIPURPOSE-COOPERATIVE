@@ -20,6 +20,7 @@ import { receiptsRouter } from "./modules/receipts/receipts.routes";
 import { usersRouter } from "./modules/users/users.routes";
 import { setupRouter } from "./modules/setup/setup.routes";
 import { openingBalancesRouter } from "./modules/openingBalances/openingBalances.routes";
+import { disbursementVouchersRouter } from "./modules/disbursementVouchers/disbursementVouchers.routes";
 
 export const app = express();
 
@@ -97,5 +98,6 @@ app.use("/api/receipts", receiptsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/setup", setupRouter);
 app.use("/api/opening-balances", openingBalancesRouter);
+app.use("/api/disbursement-vouchers", disbursementVouchersRouter);
 
 app.use(errorHandler);

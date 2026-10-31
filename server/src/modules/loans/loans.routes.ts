@@ -232,7 +232,7 @@ loansRouter.get("/:id", async (req, res) => {
     where: { id: req.params.id },
     include: {
       member: true,
-      transactions: { orderBy: { createdAt: "asc" }, include: { receipt: true } },
+      transactions: { orderBy: { createdAt: "asc" }, include: { receipt: true, disbursementVoucher: true } },
     },
   });
   if (!loan) throw notFound("Loan not found");

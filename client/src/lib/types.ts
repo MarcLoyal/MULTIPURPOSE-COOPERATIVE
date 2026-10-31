@@ -97,6 +97,36 @@ export type ReceiptPrintData = {
   receivedByName: string;
 };
 
+export type DisbursementVoucherStatus = "active" | "void";
+export type DisbursementVoucherSourceType = "loan_release" | "deposit_withdrawal" | "share_capital_withdrawal";
+
+export type DisbursementVoucher = {
+  id: string;
+  sequenceNumber: number;
+  sourceType: DisbursementVoucherSourceType;
+  amount: string;
+  status: DisbursementVoucherStatus;
+  voidReason?: string | null;
+  printCount: number;
+  createdAt: string;
+};
+
+export type DisbursementVoucherPrintData = {
+  id: string;
+  sequenceNumber: number;
+  status: DisbursementVoucherStatus;
+  voidReason: string | null;
+  isReprint: boolean;
+  amount: number;
+  amountInWords: string;
+  date: string;
+  payeeName: string;
+  memberNumber: string;
+  purpose: string;
+  accountEntries: { accountCode: string; accountLabel: string; debit: number; credit: number }[];
+  preparedByName: string;
+};
+
 export type ShareCapitalTransaction = {
   id: string;
   shareCapitalAccountId: string;
@@ -109,6 +139,7 @@ export type ShareCapitalTransaction = {
   approvedAt?: string | null;
   account?: { member: Member };
   receipt?: Receipt | null;
+  disbursementVoucher?: DisbursementVoucher | null;
 };
 
 export type LoanStatus =
@@ -131,6 +162,7 @@ export type LoanTransaction = {
   createdById: string;
   createdAt: string;
   receipt?: Receipt | null;
+  disbursementVoucher?: DisbursementVoucher | null;
 };
 
 export type LoanAging = {
@@ -433,6 +465,7 @@ export type DepositTransaction = {
   createdById: string;
   createdAt: string;
   receipt?: Receipt | null;
+  disbursementVoucher?: DisbursementVoucher | null;
 };
 
 export type DepositAccount = {

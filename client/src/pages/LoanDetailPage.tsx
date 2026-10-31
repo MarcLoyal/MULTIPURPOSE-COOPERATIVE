@@ -4,6 +4,7 @@ import { api, ApiError } from "../api/client";
 import { LoanAccount, LoanDisclosure } from "../lib/types";
 import { Badge } from "../components/Badge";
 import { ReceiptCell } from "../components/ReceiptCell";
+import { VoucherCell } from "../components/VoucherCell";
 import { ActivityLog } from "../components/ActivityLog";
 import { formatCurrency, formatDate } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
@@ -188,12 +189,13 @@ export function LoanDetailPage() {
                   <th className="px-4 py-2">Balance After</th>
                   <th className="px-4 py-2">Date</th>
                   <th className="px-4 py-2">Receipt</th>
+                  <th className="px-4 py-2">Voucher</th>
                 </tr>
               </thead>
               <tbody>
                 {(loan.transactions ?? []).length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-slate-500" colSpan={5}>
+                    <td className="px-4 py-4 text-slate-500" colSpan={6}>
                       No transactions yet.
                     </td>
                   </tr>
@@ -208,6 +210,19 @@ export function LoanDetailPage() {
                         {t.type === "repayment" ? (
                           <ReceiptCell
                             receipt={t.receipt}
+                            transactionId={t.id}
+                            sourceField="loanTransactionId"
+                            userRole={role}
+                            onChange={load}
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        {t.type === "release" ? (
+                          <VoucherCell
+                            voucher={t.disbursementVoucher}
                             transactionId={t.id}
                             sourceField="loanTransactionId"
                             userRole={role}

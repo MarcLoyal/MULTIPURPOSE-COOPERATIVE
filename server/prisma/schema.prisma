@@ -239,6 +239,7 @@ model Member {
   depositAccounts     DepositAccount[]
   userAccount         User?                @relation("MemberLogin")
   receipts            Receipt[]
+  disbursementVouchers DisbursementVoucher[]
 
   @@map("members")
 }
@@ -270,6 +271,7 @@ model ShareCapitalTransaction {
 
   ledgerEntries LedgerEntry[]
   receipt       Receipt?
+  disbursementVoucher DisbursementVoucher?
 
   @@map("share_capital_transactions")
 }
@@ -340,6 +342,7 @@ model LoanTransaction {
   ledgerEntries LedgerEntry[]
   cashTransactions CashTransaction[]
   receipt       Receipt?
+  disbursementVoucher DisbursementVoucher?
 
   @@map("loan_transactions")
 }
@@ -492,6 +495,7 @@ model DepositTransaction {
 
   ledgerEntries LedgerEntry[]
   receipt       Receipt?
+  disbursementVoucher DisbursementVoucher?
 
   @@map("deposit_transactions")
 }
@@ -702,6 +706,71 @@ model ReceiptSetting {
   updatedById   String?  @map("updated_by")
 
   @@map("receipt_settings")
+}
+
+// Printable disbursement vouchers for money going OUT (loan releases,
+// share capital withdrawals, deposit withdrawals) — the outflow
+// counterpart to Receipt, built the same audit-safe way and for the
+// same reason:
+//   - sequenceNumber comes from DisbursementVoucherSequenceCounter,
+//     incremented atomically inside the same DB transaction as the
+//     insert (see Receipt's doc comment above for why a row-level
+//     UPDATE lock is used instead of a Postgres SEQUENCE).
+//   - No delete route exists anywhere in this app for
+//     DisbursementVoucher, and nothing cascade-deletes into it. A
+//     mistake is voided, never removed.
+//   - printCount increments on every fetch of the printable page; the
+//     client treats printCount > 1 as a reprint and labels it so.
+// No configurable document label (unlike Receipt/ReceiptSetting) —
+// "Disbursement Voucher" carries none of Receipt's BIR-terminology
+// ambiguity, so there's nothing to make configurable yet.
+enum DisbursementVoucherSourceType {
+  loan_release
+  deposit_withdrawal
+  share_capital_withdrawal
+}
+
+enum DisbursementVoucherStatus {
+  active
+  void
+}
+
+model DisbursementVoucher {
+  id             String                        @id @default(uuid())
+  sequenceNumber Int                           @unique @map("sequence_number")
+  sourceType     DisbursementVoucherSourceType @map("source_type")
+
+  loanTransactionId String?          @unique @map("loan_transaction_id")
+  loanTransaction   LoanTransaction? @relation(fields: [loanTransactionId], references: [id])
+
+  depositTransactionId String?             @unique @map("deposit_transaction_id")
+  depositTransaction   DepositTransaction? @relation(fields: [depositTransactionId], references: [id])
+
+  shareCapitalTransactionId String?                  @unique @map("share_capital_transaction_id")
+  shareCapitalTransaction   ShareCapitalTransaction? @relation(fields: [shareCapitalTransactionId], references: [id])
+
+  amount   Decimal @db.Decimal(18, 2)
+  memberId String  @map("member_id")
+  member   Member  @relation(fields: [memberId], references: [id])
+
+  status     DisbursementVoucherStatus @default(active)
+  voidReason String?                   @map("void_reason")
+  voidedById String?                   @map("voided_by")
+  voidedAt   DateTime?                 @map("voided_at")
+
+  printCount  Int      @default(0) @map("print_count")
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("disbursement_vouchers")
+}
+
+// Single-row atomic counter — see DisbursementVoucher's doc comment above.
+model DisbursementVoucherSequenceCounter {
+  id         String @id @default(uuid())
+  lastNumber Int    @default(0) @map("last_number")
+
+  @@map("disbursement_voucher_sequence_counter")
 }
 
 model AuditLog {

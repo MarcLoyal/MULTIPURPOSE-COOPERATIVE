@@ -137,7 +137,7 @@ depositsRouter.get("/accounts/:id", async (req, res) => {
     include: {
       member: true,
       depositProduct: true,
-      transactions: { orderBy: { createdAt: "desc" }, include: { receipt: true } },
+      transactions: { orderBy: { createdAt: "desc" }, include: { receipt: true, disbursementVoucher: true } },
     },
   });
   if (!account) throw notFound("Deposit account not found");
