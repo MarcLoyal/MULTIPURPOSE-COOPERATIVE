@@ -71,4 +71,8 @@ export const ACCOUNTS = {
   DUE_TO_UNION_FEDERATION_CETF: "21460",
   COMMUNITY_DEVELOPMENT_FUND: "30830",
   OPTIONAL_FUND: "30840",
+  // Not a CDA MC 2022-24 code — see the migration that added it and
+  // OpeningBalanceImport in schema.prisma. The clearing/suspense line
+  // every opening-balances import entry's other side posts to.
+  OPENING_BALANCE_EQUITY: "30900",
 } as const;

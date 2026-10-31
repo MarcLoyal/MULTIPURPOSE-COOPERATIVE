@@ -3,7 +3,7 @@
 // frontend and backend are deployed as separate Vercel projects, so
 // VITE_API_URL must point at the backend's deployed URL, e.g.
 // "https://coop-mvp-server.vercel.app".
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 const TOKEN_KEY = "coop_mvp_token";
 
