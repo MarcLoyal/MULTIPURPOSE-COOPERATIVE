@@ -3,6 +3,7 @@ import { api, ApiError } from "../api/client";
 import { Member, ShareCapitalTransaction, ShareCapitalTxnType } from "../lib/types";
 import { Badge } from "../components/Badge";
 import { ReceiptCell } from "../components/ReceiptCell";
+import { VoucherCell } from "../components/VoucherCell";
 import { formatDateTime } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
@@ -127,19 +128,20 @@ export function ShareCapitalPage() {
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2">Created</th>
               <th className="px-4 py-2">Receipt</th>
+              <th className="px-4 py-2">Voucher</th>
               {canApprove && <th className="px-4 py-2">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {txns === null ? (
               <tr>
-                <td className="px-4 py-4 text-slate-500" colSpan={7}>
+                <td className="px-4 py-4 text-slate-500" colSpan={8}>
                   Loading…
                 </td>
               </tr>
             ) : txns.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-500" colSpan={7}>
+                <td className="px-4 py-4 text-slate-500" colSpan={8}>
                   No share capital transactions yet.
                 </td>
               </tr>
@@ -157,6 +159,19 @@ export function ShareCapitalPage() {
                     {t.status === "posted" && (t.type === "subscription" || t.type === "additional_purchase") ? (
                       <ReceiptCell
                         receipt={t.receipt}
+                        transactionId={t.id}
+                        sourceField="shareCapitalTransactionId"
+                        userRole={user?.role}
+                        onChange={load}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {t.status === "posted" && t.type === "withdrawal" ? (
+                      <VoucherCell
+                        voucher={t.disbursementVoucher}
                         transactionId={t.id}
                         sourceField="shareCapitalTransactionId"
                         userRole={user?.role}

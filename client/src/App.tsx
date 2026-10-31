@@ -31,6 +31,7 @@ import { LoanLimitSettingsPage } from "./pages/LoanLimitSettingsPage";
 import { ReceiptSettingsPage } from "./pages/ReceiptSettingsPage";
 import { StaffUsersPage } from "./pages/StaffUsersPage";
 import { ReceiptPrintPage } from "./pages/ReceiptPrintPage";
+import { DisbursementVoucherPrintPage } from "./pages/DisbursementVoucherPrintPage";
 import { MemberStatementPage } from "./pages/MemberStatementPage";
 import { CdaDataPackPage } from "./pages/CdaDataPackPage";
 import { OpeningBalancesImportPage } from "./pages/OpeningBalancesImportPage";
@@ -102,6 +103,7 @@ export default function App() {
             <Route path="/settings/staff-users" element={<StaffUsersPage />} />
             <Route path="/settings/opening-balances-import" element={<OpeningBalancesImportPage />} />
             <Route path="/receipts/:id" element={<ReceiptPrintPage />} />
+            <Route path="/disbursement-vouchers/:id" element={<DisbursementVoucherPrintPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -45,7 +45,7 @@ shareCapitalRouter.get("/transactions", async (req, res) => {
       status: status ? (status as any) : undefined,
       account: memberId ? { memberId } : undefined,
     },
-    include: { account: { include: { member: true } }, receipt: true },
+    include: { account: { include: { member: true } }, receipt: true, disbursementVoucher: true },
     orderBy: { createdAt: "desc" },
   });
   res.json(txns);
@@ -54,7 +54,7 @@ shareCapitalRouter.get("/transactions", async (req, res) => {
 shareCapitalRouter.get("/transactions/:id", async (req, res) => {
   const txn = await prisma.shareCapitalTransaction.findUnique({
     where: { id: req.params.id },
-    include: { account: { include: { member: true } }, ledgerEntries: true, receipt: true },
+    include: { account: { include: { member: true } }, ledgerEntries: true, receipt: true, disbursementVoucher: true },
   });
   if (!txn) throw notFound("Share capital transaction not found");
   res.json(txn);

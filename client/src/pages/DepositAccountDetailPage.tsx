@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { DepositAccount } from "../lib/types";
 import { ReceiptCell } from "../components/ReceiptCell";
+import { VoucherCell } from "../components/VoucherCell";
 import { formatCurrency, formatDate, formatDateTime, humanizeEnum } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
@@ -175,12 +176,13 @@ export function DepositAccountDetailPage() {
               <th className="px-4 py-2">Balance After</th>
               <th className="px-4 py-2">Date</th>
               <th className="px-4 py-2">Receipt</th>
+              <th className="px-4 py-2">Voucher</th>
             </tr>
           </thead>
           <tbody>
             {!account.transactions || account.transactions.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-500" colSpan={5}>
+                <td className="px-4 py-4 text-slate-500" colSpan={6}>
                   No transactions yet.
                 </td>
               </tr>
@@ -195,6 +197,19 @@ export function DepositAccountDetailPage() {
                     {t.type === "deposit" ? (
                       <ReceiptCell
                         receipt={t.receipt}
+                        transactionId={t.id}
+                        sourceField="depositTransactionId"
+                        userRole={role}
+                        onChange={load}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {t.type === "withdrawal" ? (
+                      <VoucherCell
+                        voucher={t.disbursementVoucher}
                         transactionId={t.id}
                         sourceField="depositTransactionId"
                         userRole={role}
