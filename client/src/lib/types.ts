@@ -252,6 +252,24 @@ export type AuditLogEntry = {
   description: string;
 };
 
+export type GlobalAuditLogEntry = AuditLogEntry & {
+  entityType: string;
+  entityId: string;
+  performedById: string;
+};
+
+export type GlobalAuditLogPage = {
+  total: number;
+  page: number;
+  pageSize: number;
+  logs: GlobalAuditLogEntry[];
+};
+
+export type AuditLogFilterOptions = {
+  users: { id: string; name: string }[];
+  actions: string[];
+};
+
 export type DashboardSummary = {
   activeMembers: number;
   activeLoans: number;

@@ -34,6 +34,9 @@ export function Layout() {
         { to: "/settings/receipt-label", label: "Receipt Label" },
       ]
     : NAV_ITEMS;
+  if (user?.role === "manager" || user?.role === "admin") {
+    navItems = [...navItems, { to: "/audit-log", label: "Audit Log" }];
+  }
   if (user?.role === "admin") {
     navItems = [
       ...navItems,

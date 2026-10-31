@@ -35,6 +35,7 @@ import { DisbursementVoucherPrintPage } from "./pages/DisbursementVoucherPrintPa
 import { MemberStatementPage } from "./pages/MemberStatementPage";
 import { CdaDataPackPage } from "./pages/CdaDataPackPage";
 import { OpeningBalancesImportPage } from "./pages/OpeningBalancesImportPage";
+import { AuditLogPage } from "./pages/AuditLogPage";
 
 // Staff and member logins are two entirely separate route trees, each
 // behind its own guard that redirects the wrong role away before its
@@ -102,6 +103,7 @@ export default function App() {
             <Route path="/settings/receipt-label" element={<ReceiptSettingsPage />} />
             <Route path="/settings/staff-users" element={<StaffUsersPage />} />
             <Route path="/settings/opening-balances-import" element={<OpeningBalancesImportPage />} />
+            <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="/receipts/:id" element={<ReceiptPrintPage />} />
             <Route path="/disbursement-vouchers/:id" element={<DisbursementVoucherPrintPage />} />
           </Route>
