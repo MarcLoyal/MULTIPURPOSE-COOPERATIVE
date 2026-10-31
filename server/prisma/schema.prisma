@@ -785,6 +785,13 @@ model AuditLog {
   performedAt   DateTime    @default(now()) @map("performed_at")
 
   @@index([entityType, entityId])
+  // Added for the global Audit Log viewer (audit.routes.ts's GET / and
+  // GET /export) — filters by user, action, and date range directly
+  // drive these three columns, and this table is append-only and never
+  // trimmed, so it only grows.
+  @@index([performedById])
+  @@index([action])
+  @@index([performedAt])
   @@map("audit_logs")
 }
 
