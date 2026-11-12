@@ -7,6 +7,7 @@ import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { postLedgerBatch } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
 import { round2 } from "../../lib/loanSchedule";
+import { requireModule } from "../../lib/moduleSettings";
 
 export const depositsRouter = Router();
 depositsRouter.use(requireAuth, requireStaff);
@@ -51,6 +52,7 @@ depositsRouter.get("/products", async (_req, res) => {
 depositsRouter.post(
   "/products",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const data = createProductSchema.parse(req.body);
 
@@ -93,6 +95,7 @@ const patchProductSchema = z.object({ isActive: z.boolean() });
 depositsRouter.patch(
   "/products/:id",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const { isActive } = patchProductSchema.parse(req.body);
     const existing = await prisma.depositProduct.findUnique({ where: { id: req.params.id } });

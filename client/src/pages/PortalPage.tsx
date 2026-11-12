@@ -2,17 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { DividendEstimate, LoanLimit, Member, ShareCapitalTransaction } from "../lib/types";
 import { Badge } from "../components/Badge";
+import { SummaryCard } from "../components/SummaryCard";
 import { formatCurrency, formatDate } from "../lib/format";
-
-function SummaryCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="text-2xl font-semibold mt-1 text-slate-900">{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
-    </div>
-  );
-}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

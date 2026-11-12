@@ -6,9 +6,16 @@ import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest, conflict, notFound } from "../../lib/httpError";
 import { buildMemberStatement } from "../../lib/memberStatement";
+import { buildMemberTimeline } from "../../lib/memberTimeline";
 
 export const membersRouter = Router();
 membersRouter.use(requireAuth, requireStaff);
+
+// A base64 data URL, resized/compressed to roughly 200px / 100KB
+// client-side before upload (see MemberDetailPage.tsx) — this cap is a
+// generous backstop, not the primary size control. ~145,000 characters
+// covers a ~100KB image plus base64's ~33% inflation with headroom.
+const PHOTO_MAX_LENGTH = 200_000;
 
 const createMemberSchema = z.object({
   memberNumber: z.string().min(1),
@@ -19,6 +26,12 @@ const createMemberSchema = z.object({
   dateJoined: z.coerce.date().optional(),
   beneficiaryName: z.string().optional(),
   beneficiaryRelationship: z.string().optional(),
+  // IWMPC Phase 1 additions — all optional, all additive.
+  birthDate: z.coerce.date().optional(),
+  civilStatus: z.enum(["single", "married", "widowed", "separated"]).optional(),
+  idType: z.string().optional(),
+  idNumber: z.string().optional(),
+  photoUrl: z.string().max(PHOTO_MAX_LENGTH, "Photo is too large").optional(),
 });
 
 const updateMemberSchema = createMemberSchema.partial();
@@ -39,7 +52,30 @@ membersRouter.get("/", async (req, res) => {
           ]
         : undefined,
     },
-    include: { shareCapitalAccount: true },
+    // Explicit select, not `include` on top of the default "every
+    // scalar field" — deliberately leaves out photoUrl so a page
+    // listing many members never pulls every photo over the wire.
+    select: {
+      id: true,
+      memberNumber: true,
+      fullName: true,
+      phone: true,
+      email: true,
+      address: true,
+      dateJoined: true,
+      status: true,
+      membershipClass: true,
+      beneficiaryName: true,
+      beneficiaryRelationship: true,
+      birthDate: true,
+      civilStatus: true,
+      idType: true,
+      idNumber: true,
+      createdAt: true,
+      updatedAt: true,
+      createdById: true,
+      shareCapitalAccount: true,
+    },
     orderBy: { createdAt: "desc" },
   });
   res.json(members);
@@ -51,6 +87,8 @@ membersRouter.get("/:id", async (req, res) => {
     include: {
       shareCapitalAccount: true,
       loanAccounts: true,
+      depositAccounts: { include: { depositProduct: true } },
+      beneficiaries: { orderBy: { sortOrder: "asc" } },
       // Never passwordHash — this is read by any staff role, not just
       // the ones allowed to manage the login itself.
       userAccount: { select: { id: true, email: true, status: true, createdAt: true } },
@@ -81,6 +119,11 @@ membersRouter.post("/", requireRole("admin", "manager", "accountant"), async (re
         dateJoined: data.dateJoined,
         beneficiaryName: data.beneficiaryName,
         beneficiaryRelationship: data.beneficiaryRelationship,
+        birthDate: data.birthDate,
+        civilStatus: data.civilStatus,
+        idType: data.idType,
+        idNumber: data.idNumber,
+        photoUrl: data.photoUrl,
         createdById: req.user!.id,
       },
     });
@@ -244,3 +287,62 @@ membersRouter.patch(
 membersRouter.get("/:id/statement", async (req, res) => {
   res.json(await buildMemberStatement(req.params.id));
 });
+
+// Lahat ng Transaksyon (All Transactions) — see lib/memberTimeline.ts.
+membersRouter.get("/:id/transactions", async (req, res) => {
+  res.json(await buildMemberTimeline(req.params.id));
+});
+
+const beneficiariesSchema = z.object({
+  beneficiaries: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        relationship: z.string().min(1),
+      })
+    )
+    .max(10),
+});
+
+// Replaces the WHOLE list in one call rather than per-row CRUD — the
+// simplest correct behavior for a list this short, and keeps viewing
+// and editing separate at the UI level (one "Save beneficiaries"
+// action, not inline-editable rows). Does not touch the old flat
+// Member.beneficiaryName/beneficiaryRelationship fields — see
+// MemberBeneficiary's schema comment for why those stay untouched.
+membersRouter.put(
+  "/:id/beneficiaries",
+  requireRole("admin", "manager", "accountant"),
+  async (req, res) => {
+    const { beneficiaries } = beneficiariesSchema.parse(req.body);
+    const existing = await prisma.member.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw notFound("Member not found");
+
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.memberBeneficiary.deleteMany({ where: { memberId: req.params.id } });
+      if (beneficiaries.length === 0) return [];
+      await tx.memberBeneficiary.createMany({
+        data: beneficiaries.map((b, i) => ({
+          memberId: req.params.id,
+          name: b.name,
+          relationship: b.relationship,
+          sortOrder: i,
+        })),
+      });
+      const rows = await tx.memberBeneficiary.findMany({
+        where: { memberId: req.params.id },
+        orderBy: { sortOrder: "asc" },
+      });
+      await writeAuditLog(tx, {
+        entityType: "Member",
+        entityId: req.params.id,
+        action: "update",
+        newValue: { beneficiaries: rows },
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+      return rows;
+    });
+
+    res.json(result);
+  }
+);

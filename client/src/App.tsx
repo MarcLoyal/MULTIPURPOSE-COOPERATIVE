@@ -1,5 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ModuleSettingsProvider } from "./context/ModuleSettingsContext";
+import { ModuleGate } from "./components/ModuleGate";
 import { Layout } from "./components/Layout";
 import { PortalLayout } from "./components/PortalLayout";
 import { LoginPage } from "./pages/LoginPage";
@@ -36,6 +38,7 @@ import { MemberStatementPage } from "./pages/MemberStatementPage";
 import { CdaDataPackPage } from "./pages/CdaDataPackPage";
 import { OpeningBalancesImportPage } from "./pages/OpeningBalancesImportPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
+import { ModuleSettingsPage } from "./pages/ModuleSettingsPage";
 
 // Staff and member logins are two entirely separate route trees, each
 // behind its own guard that redirects the wrong role away before its
@@ -67,48 +70,205 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/setup" element={<SetupPage />} />
-          <Route element={<MemberArea />}>
-            <Route path="/portal" element={<PortalPage />} />
-            <Route path="/portal/change-password" element={<ChangePasswordPage />} />
-            <Route path="/portal/statement" element={<MemberStatementPage />} />
-          </Route>
-          <Route element={<StaffArea />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/members" element={<MembersPage />} />
-            <Route path="/members/:id" element={<MemberDetailPage />} />
-            <Route path="/members/:id/statement" element={<MemberStatementPage />} />
-            <Route path="/share-capital" element={<ShareCapitalPage />} />
-            <Route path="/loans" element={<LoansPage />} />
-            <Route path="/loans/:id" element={<LoanDetailPage />} />
-            <Route path="/deposits" element={<DepositsPage />} />
-            <Route path="/deposits/:id" element={<DepositAccountDetailPage />} />
-            <Route path="/cash" element={<CashPage />} />
-            <Route path="/ledger" element={<LedgerPage />} />
-            <Route path="/trial-balance" element={<TrialBalancePage />} />
-            <Route path="/income-statement" element={<IncomeStatementPage />} />
-            <Route path="/balance-sheet" element={<BalanceSheetPage />} />
-            <Route path="/cash-flow-statement" element={<CashFlowStatementPage />} />
-            <Route path="/fiscal-years" element={<FiscalYearsPage />} />
-            <Route path="/fiscal-years/:id" element={<FiscalYearDetailPage />} />
-            <Route path="/allowance-report" element={<AllowanceReportPage />} />
-            <Route path="/cda-data-pack" element={<CdaDataPackPage />} />
-            <Route path="/settings/allowance-rates" element={<AllowanceSettingsPage />} />
-            <Route path="/settings/deposit-products" element={<DepositProductsSettingsPage />} />
-            <Route path="/settings/loan-products" element={<LoanProductsSettingsPage />} />
-            <Route path="/settings/dividend-rates" element={<DividendSettingsPage />} />
-            <Route path="/settings/loan-limit" element={<LoanLimitSettingsPage />} />
-            <Route path="/settings/receipt-label" element={<ReceiptSettingsPage />} />
-            <Route path="/settings/staff-users" element={<StaffUsersPage />} />
-            <Route path="/settings/opening-balances-import" element={<OpeningBalancesImportPage />} />
-            <Route path="/audit-log" element={<AuditLogPage />} />
-            <Route path="/receipts/:id" element={<ReceiptPrintPage />} />
-            <Route path="/disbursement-vouchers/:id" element={<DisbursementVoucherPrintPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ModuleSettingsProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/setup" element={<SetupPage />} />
+            <Route element={<MemberArea />}>
+              <Route path="/portal" element={<PortalPage />} />
+              <Route path="/portal/change-password" element={<ChangePasswordPage />} />
+              <Route path="/portal/statement" element={<MemberStatementPage />} />
+            </Route>
+            <Route element={<StaffArea />}>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/members" element={<MembersPage />} />
+              <Route path="/members/:id" element={<MemberDetailPage />} />
+              <Route path="/members/:id/statement" element={<MemberStatementPage />} />
+              <Route
+                path="/share-capital"
+                element={
+                  <ModuleGate moduleKey="shareCapital">
+                    <ShareCapitalPage />
+                  </ModuleGate>
+                }
+              />
+              <Route path="/loans" element={<LoansPage />} />
+              <Route path="/loans/:id" element={<LoanDetailPage />} />
+              <Route
+                path="/deposits"
+                element={
+                  <ModuleGate moduleKey="deposits">
+                    <DepositsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/deposits/:id"
+                element={
+                  <ModuleGate moduleKey="deposits">
+                    <DepositAccountDetailPage />
+                  </ModuleGate>
+                }
+              />
+              <Route path="/cash" element={<CashPage />} />
+              <Route
+                path="/ledger"
+                element={
+                  <ModuleGate moduleKey="generalLedger">
+                    <LedgerPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/trial-balance"
+                element={
+                  <ModuleGate moduleKey="trialBalance">
+                    <TrialBalancePage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/income-statement"
+                element={
+                  <ModuleGate moduleKey="incomeStatement">
+                    <IncomeStatementPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/balance-sheet"
+                element={
+                  <ModuleGate moduleKey="balanceSheet">
+                    <BalanceSheetPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/cash-flow-statement"
+                element={
+                  <ModuleGate moduleKey="cashFlowStatement">
+                    <CashFlowStatementPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/fiscal-years"
+                element={
+                  <ModuleGate moduleKey="fiscalYears">
+                    <FiscalYearsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/fiscal-years/:id"
+                element={
+                  <ModuleGate moduleKey="fiscalYears">
+                    <FiscalYearDetailPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/allowance-report"
+                element={
+                  <ModuleGate moduleKey="allowanceReport">
+                    <AllowanceReportPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/cda-data-pack"
+                element={
+                  <ModuleGate moduleKey="cdaDataPack">
+                    <CdaDataPackPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/allowance-rates"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <AllowanceSettingsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/deposit-products"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <DepositProductsSettingsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/loan-products"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <LoanProductsSettingsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/dividend-rates"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <DividendSettingsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/loan-limit"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <LoanLimitSettingsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/receipt-label"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <ReceiptSettingsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/staff-users"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <StaffUsersPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/opening-balances-import"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <OpeningBalancesImportPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/settings/modules"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <ModuleSettingsPage />
+                  </ModuleGate>
+                }
+              />
+              <Route
+                path="/audit-log"
+                element={
+                  <ModuleGate moduleKey="advanced">
+                    <AuditLogPage />
+                  </ModuleGate>
+                }
+              />
+              <Route path="/receipts/:id" element={<ReceiptPrintPage />} />
+              <Route path="/disbursement-vouchers/:id" element={<DisbursementVoucherPrintPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ModuleSettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

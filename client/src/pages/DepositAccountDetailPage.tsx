@@ -90,7 +90,10 @@ export function DepositAccountDetailPage() {
       <div className="flex items-center justify-between mt-2 mb-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">
-            {account.depositProduct?.name} — {account.member?.fullName}
+            {account.depositProduct?.name} —{" "}
+            <Link to={`/members/${account.memberId}`} className="hover:underline">
+              {account.member?.fullName}
+            </Link>
           </h1>
           <p className="text-sm text-slate-500">
             {account.depositProduct?.type === "time" ? "Time Deposit" : "Savings"} · Opened {formatDate(account.openedAt)}

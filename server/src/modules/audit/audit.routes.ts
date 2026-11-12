@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { describeAuditLog } from "../../lib/audit";
 import { badRequest } from "../../lib/httpError";
+import { requireModule } from "../../lib/moduleSettings";
 
 export const auditRouter = Router();
 auditRouter.use(requireAuth, requireStaff);
@@ -75,7 +76,7 @@ function parseFilters(query: Record<string, unknown>) {
  * performed a logged action) — this is scoped to this module's own
  * manager/admin access and to users the log can actually filter on.
  */
-auditRouter.get("/filters", requireRole("manager", "admin"), async (_req, res) => {
+auditRouter.get("/filters", requireRole("manager", "admin"), requireModule("advanced"), async (_req, res) => {
   const rows = await prisma.auditLog.findMany({
     distinct: ["performedById"],
     select: { performedById: true, performedByName: true },
@@ -97,7 +98,7 @@ const PAGE_SIZE = 50;
  * grows). Manager/admin only, per the cooperative's governance need to
  * review approvals, voids, postings, and user/settings changes.
  */
-auditRouter.get("/", requireRole("manager", "admin"), async (req, res) => {
+auditRouter.get("/", requireRole("manager", "admin"), requireModule("advanced"), async (req, res) => {
   const where = parseFilters(req.query as Record<string, unknown>);
   const page = Math.max(1, Number(req.query.page) || 1);
 
@@ -142,7 +143,7 @@ function escapeCsvField(value: string): string {
  * Generated server-side rather than built up from a JSON fetch
  * client-side, since an unpaginated result set here can be large.
  */
-auditRouter.get("/export", requireRole("manager", "admin"), async (req, res) => {
+auditRouter.get("/export", requireRole("manager", "admin"), requireModule("advanced"), async (req, res) => {
   const where = parseFilters(req.query as Record<string, unknown>);
   const logs = await prisma.auditLog.findMany({ where, orderBy: { performedAt: "desc" } });
 

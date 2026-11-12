@@ -8,9 +8,10 @@ import { postLedgerBatch, getIncomeStatement } from "../../lib/ledger";
 import { ACCOUNTS } from "../../lib/accounts";
 import { round2, computeLoanSchedule, splitRepayment } from "../../lib/loanSchedule";
 import { INFLOW_TYPES } from "../shareCapital/shareCapital.routes";
+import { requireModule } from "../../lib/moduleSettings";
 
 export const fiscalYearsRouter = Router();
-fiscalYearsRouter.use(requireAuth, requireStaff);
+fiscalYearsRouter.use(requireAuth, requireStaff, requireModule("fiscalYears"));
 
 /**
  * A fiscal year's period runs from the day after the previous fiscal

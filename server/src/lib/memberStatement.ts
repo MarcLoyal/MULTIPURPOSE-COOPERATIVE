@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { notFound } from "./httpError";
+import { computeAging, computeLoanSchedule } from "./loanSchedule";
 
 /**
  * A member's consolidated statement of account: share capital
@@ -39,6 +40,18 @@ export async function buildMemberStatement(memberId: string) {
   });
   if (!member) throw notFound("Member not found");
 
+  // "Last dividend" — a dividend is a system-posted ShareCapitalTransaction
+  // (no pending/approve step, see shareCapital.routes.ts's PAID_INFLOW_TYPES
+  // doc comment), so it's already in the posted-only query above; no
+  // extra query needed, just pick the latest one.
+  const dividendTxns = (member.shareCapitalAccount?.transactions ?? []).filter((t) => t.type === "dividend");
+  const lastDividend = dividendTxns.length
+    ? (() => {
+        const latest = dividendTxns[dividendTxns.length - 1];
+        return { amount: Number(latest.amount), date: latest.createdAt };
+      })()
+    : null;
+
   return {
     generatedAt: new Date(),
     member: {
@@ -59,19 +72,40 @@ export async function buildMemberStatement(memberId: string) {
           })),
         }
       : null,
-    loans: member.loanAccounts.map((loan) => ({
-      id: loan.id,
-      loanProduct: loan.loanProduct,
-      principalAmount: Number(loan.principalAmount),
-      status: loan.status,
-      transactions: loan.transactions.map((t) => ({
-        id: t.id,
-        type: t.type,
-        amount: Number(t.amount),
-        balanceAfter: Number(t.balanceAfter),
-        createdAt: t.createdAt,
-      })),
-    })),
+    lastDividend,
+    loans: member.loanAccounts.map((loan) => {
+      // Aging only makes sense once a loan has actually been released —
+      // applied/under_review/approved loans have no releaseDate yet and
+      // no schedule to age against.
+      let aging: ReturnType<typeof computeAging> | null = null;
+      if (loan.releaseDate) {
+        const schedule = computeLoanSchedule(
+          loan.computationMethod,
+          Number(loan.principalAmount),
+          Number(loan.interestRate),
+          loan.termMonths,
+          loan.releaseDate
+        );
+        const totalRepaid = loan.transactions
+          .filter((t) => t.type === "repayment")
+          .reduce((sum, t) => sum + Number(t.amount), 0);
+        aging = computeAging({ schedule, totalRepaid });
+      }
+      return {
+        id: loan.id,
+        loanProduct: loan.loanProduct,
+        principalAmount: Number(loan.principalAmount),
+        status: loan.status,
+        aging,
+        transactions: loan.transactions.map((t) => ({
+          id: t.id,
+          type: t.type,
+          amount: Number(t.amount),
+          balanceAfter: Number(t.balanceAfter),
+          createdAt: t.createdAt,
+        })),
+      };
+    }),
     deposits: member.depositAccounts.map((account) => ({
       id: account.id,
       productName: account.depositProduct.name,

@@ -68,7 +68,10 @@ export function LoanDetailPage() {
       <div className="flex items-center justify-between mt-2 mb-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">
-            {loan.loanProduct} — {loan.member?.fullName}
+            {loan.loanProduct} —{" "}
+            <Link to={`/members/${loan.memberId}`} className="hover:underline">
+              {loan.member?.fullName}
+            </Link>
           </h1>
           <p className="text-sm text-slate-500">
             Principal {formatCurrency(loan.principalAmount)} · {loan.termMonths} months ·{" "}

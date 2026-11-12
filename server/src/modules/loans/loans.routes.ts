@@ -15,6 +15,7 @@ import {
 } from "../../lib/loanSchedule";
 import { receivableAccountForStatus, reclassifyLoanReceivable } from "../../lib/loanReceivable";
 import { computeLoanLimit } from "../../lib/loanLimit";
+import { requireModule } from "../../lib/moduleSettings";
 
 export const loansRouter = Router();
 loansRouter.use(requireAuth, requireStaff);
@@ -50,6 +51,7 @@ loansRouter.get("/products", async (_req, res) => {
 loansRouter.post(
   "/products",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const data = createProductSchema.parse(req.body);
 
@@ -74,6 +76,7 @@ const updateProductSchema = createProductSchema.partial().extend({ isActive: z.b
 loansRouter.patch(
   "/products/:id",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const data = updateProductSchema.parse(req.body);
     const existing = await prisma.loanProduct.findUnique({ where: { id: req.params.id } });

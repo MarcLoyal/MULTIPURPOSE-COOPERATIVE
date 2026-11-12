@@ -82,7 +82,9 @@ export function DisbursementVoucherPrintPage() {
           <div className="flex justify-between">
             <dt className="text-slate-500">Payee</dt>
             <dd className="font-medium text-right">
-              {voucher.payeeName}
+              <Link to={`/members/${voucher.memberId}`} className="hover:underline print:no-underline print:text-inherit">
+                {voucher.payeeName}
+              </Link>
               <br />
               <span className="text-xs text-slate-400">{voucher.memberNumber}</span>
             </dd>
