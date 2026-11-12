@@ -183,6 +183,16 @@ enum AuditAction {
   delete_attempt
 }
 
+// IWMPC Phase 1 addition — bilingual labels (Tagalog first) are owned by
+// the client, this enum only needs stable keys. Nullable on Member so
+// every existing row (including the other cooperative's) is unaffected.
+enum CivilStatus {
+  single
+  married
+  widowed
+  separated
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -227,8 +237,24 @@ model Member {
   // this yet). Defaults every existing/new member to regular so nothing
   // live changes behavior.
   membershipClass          MembershipClass @default(regular) @map("membership_class")
+  // Kept exactly as-is (the single flat beneficiary) for backward
+  // compatibility — the other cooperative's UI still reads these two
+  // fields. New members (IWMPC's own data entry going forward) use the
+  // MemberBeneficiary table below instead; this pair isn't migrated
+  // into it and isn't written to by the new multi-beneficiary UI.
   beneficiaryName          String?      @map("beneficiary_name")
   beneficiaryRelationship  String?      @map("beneficiary_relationship")
+  // IWMPC Phase 1 additions — all nullable, all unused by the other
+  // cooperative's deployment unless it starts filling them in too.
+  birthDate                DateTime?    @map("birth_date")
+  civilStatus              CivilStatus? @map("civil_status")
+  idType                   String?      @map("id_type")
+  idNumber                 String?      @map("id_number")
+  // A small base64 data URL (resized/compressed client-side to roughly
+  // 200px / 100KB before upload — see members.routes.ts). Deliberately
+  // excluded from the members LIST endpoint's select, so a page showing
+  // many members at once never pulls every photo over the wire.
+  photoUrl                 String?      @map("photo_url")
   createdAt                DateTime     @default(now()) @map("created_at")
   updatedAt                DateTime     @updatedAt @map("updated_at")
   createdById              String?      @map("created_by")
@@ -240,8 +266,27 @@ model Member {
   userAccount         User?                @relation("MemberLogin")
   receipts            Receipt[]
   disbursementVouchers DisbursementVoucher[]
+  beneficiaries       MemberBeneficiary[]
 
   @@map("members")
+}
+
+// Multiple beneficiaries (IWMPC Phase 1) — additive alongside, not a
+// replacement for, Member.beneficiaryName/beneficiaryRelationship above.
+// Whole list is replaced on edit (PUT /api/members/:id/beneficiaries),
+// not individually patched — simplest correct behavior for a list this
+// short, and keeps "viewing and editing separate" at the UI level.
+model MemberBeneficiary {
+  id           String   @id @default(uuid())
+  memberId     String   @map("member_id")
+  member       Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([memberId])
+  @@map("member_beneficiaries")
 }
 
 model ShareCapitalAccount {
@@ -771,6 +816,30 @@ model DisbursementVoucherSequenceCounter {
   lastNumber Int    @default(0) @map("last_number")
 
   @@map("disbursement_voucher_sequence_counter")
+}
+
+// Per-deployment module on/off switch (IWMPC phase-in). One row per
+// toggleable module, keyed by a stable string rather than per-column
+// booleans so a future module (water billing, rice/LPG) is just a new
+// row, not a migration. Seeded with every current module at
+// enabled=true, so an existing deployment (the other cooperative) sees
+// no change at all. Read by both sides from the same row — the client
+// hides nav for a disabled module, the server's requireModule
+// middleware (lib/moduleSettings.ts) independently blocks the route
+// for every role except admin, who reaches it via a small "Advanced"
+// link instead. Dashboard/Members/Cash/Loans, and the share-capital/
+// deposit transaction-recording endpoints the member profile's
+// "Receive Payment" action depends on, are never gated by this at
+// all — only the report/accounting modules and the admin-tools
+// ("advanced") bucket are.
+model ModuleSetting {
+  key         String   @id
+  label       String
+  enabled     Boolean  @default(true)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String?  @map("updated_by")
+
+  @@map("module_settings")
 }
 
 model AuditLog {

@@ -80,8 +80,10 @@ export function ReceiptPrintPage() {
           </div>
           <div className="flex justify-between">
             <dt className="text-slate-500">Received from</dt>
-            <dd className="font-medium text-right">
-              {receipt.memberName}
+            <dd className="font-medium text-right print:text-slate-900">
+              <Link to={`/members/${receipt.memberId}`} className="hover:underline print:no-underline print:text-inherit">
+                {receipt.memberName}
+              </Link>
               <br />
               <span className="text-xs text-slate-400">{receipt.memberNumber}</span>
             </dd>

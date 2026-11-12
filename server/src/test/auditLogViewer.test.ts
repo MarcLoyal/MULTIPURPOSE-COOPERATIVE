@@ -19,8 +19,8 @@ const RUN_ID = Date.now();
 const ENTITY_TYPE = `TestAuditEntity${RUN_ID}`;
 const ENTITY_ID = `entity-${RUN_ID}`;
 
-let managerUser: { id: string; email: string };
-let cashierUser: { id: string; email: string };
+let managerUser: { id: string; email: string; name: string };
+let cashierUser: { id: string; email: string; name: string };
 let managerToken: string;
 let cashierToken: string;
 

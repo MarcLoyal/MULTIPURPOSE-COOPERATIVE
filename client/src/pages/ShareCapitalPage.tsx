@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { Member, ShareCapitalTransaction, ShareCapitalTxnType } from "../lib/types";
 import { Badge } from "../components/Badge";
@@ -148,7 +149,15 @@ export function ShareCapitalPage() {
             ) : (
               txns.map((t) => (
                 <tr key={t.id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-4 py-2">{t.account?.member.fullName ?? "—"}</td>
+                  <td className="px-4 py-2">
+                    {t.account?.member ? (
+                      <Link to={`/members/${t.account.member.id}`} className="hover:underline">
+                        {t.account.member.fullName}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-2">{t.type}</td>
                   <td className="px-4 py-2">{Number(t.amount).toFixed(2)}</td>
                   <td className="px-4 py-2">

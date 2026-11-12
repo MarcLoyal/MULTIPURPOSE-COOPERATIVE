@@ -177,6 +177,7 @@ disbursementVouchersRouter.get("/:id", async (req, res) => {
     amount: Number(voucher.amount),
     amountInWords: amountToPesoWords(Number(voucher.amount)),
     date: voucher.createdAt,
+    memberId: voucher.member.id,
     payeeName: voucher.member.fullName,
     memberNumber: voucher.member.memberNumber,
     purpose,

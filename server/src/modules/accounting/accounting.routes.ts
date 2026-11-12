@@ -13,6 +13,7 @@ import { writeAuditLog } from "../../lib/audit";
 import { ACCOUNTS } from "../../lib/accounts";
 import { computeAging, computeLoanSchedule } from "../../lib/loanSchedule";
 import { classifyAllowanceBucket, round2 } from "../../lib/allowance";
+import { requireModule } from "../../lib/moduleSettings";
 
 export const accountingRouter = Router();
 accountingRouter.use(requireAuth, requireStaff);
@@ -23,7 +24,7 @@ async function getAccountLabels(): Promise<Record<string, string>> {
 }
 
 // Read-only General Ledger, filterable by date range and account_code (spec 4.5).
-accountingRouter.get("/ledger", async (req, res) => {
+accountingRouter.get("/ledger", requireModule("generalLedger"), async (req, res) => {
   const { from, to, accountCode } = req.query as { from?: string; to?: string; accountCode?: string };
 
   const [entries, labels] = await Promise.all([
@@ -49,7 +50,7 @@ accountingRouter.get("/ledger", async (req, res) => {
 });
 
 // Trial Balance: sum of debits vs credits per account_code (spec 4.5).
-accountingRouter.get("/trial-balance", async (_req, res) => {
+accountingRouter.get("/trial-balance", requireModule("trialBalance"), async (_req, res) => {
   const [rows, labels] = await Promise.all([getTrialBalance(), getAccountLabels()]);
   const withLabels = rows.map((r) => ({
     ...r,
@@ -73,7 +74,7 @@ accountingRouter.get("/trial-balance", async (_req, res) => {
 // from/to are optional, same convention as /ledger: omitted means
 // unbounded, so picking a real fiscal year's start/end is the caller's
 // responsibility, not something this endpoint assumes.
-accountingRouter.get("/income-statement", async (req, res) => {
+accountingRouter.get("/income-statement", requireModule("incomeStatement"), async (req, res) => {
   const { from, to } = req.query as { from?: string; to?: string };
   const statement = await getIncomeStatement(from ? new Date(from) : undefined, to ? new Date(to) : undefined);
   res.json(statement);
@@ -82,7 +83,7 @@ accountingRouter.get("/income-statement", async (req, res) => {
 // Statement of Financial Condition — see lib/ledger.ts:getBalanceSheet.
 // ?asOf is optional, same convention as /ledger and /income-statement;
 // omitted means right now.
-accountingRouter.get("/balance-sheet", async (req, res) => {
+accountingRouter.get("/balance-sheet", requireModule("balanceSheet"), async (req, res) => {
   const { asOf } = req.query as { asOf?: string };
   res.json(await getBalanceSheet(asOf ? new Date(asOf) : undefined));
 });
@@ -90,7 +91,7 @@ accountingRouter.get("/balance-sheet", async (req, res) => {
 // Statement of Cash Flows (direct method) — see lib/ledger.ts:
 // getStatementOfCashFlows. from/to are optional, same convention as
 // /income-statement; omitted "from" means "since the ledger began."
-accountingRouter.get("/cash-flow-statement", async (req, res) => {
+accountingRouter.get("/cash-flow-statement", requireModule("cashFlowStatement"), async (req, res) => {
   const { from, to } = req.query as { from?: string; to?: string };
   const statement = await getStatementOfCashFlows(from ? new Date(from) : undefined, to ? new Date(to) : new Date());
   res.json(statement);
@@ -99,7 +100,7 @@ accountingRouter.get("/cash-flow-statement", async (req, res) => {
 // CDA Report Data Pack — see lib/cdaDataPack.ts's doc comment for what
 // this is (and isn't). Works for an open fiscal year too (preliminary,
 // as-of-now figures), not just a closed one.
-accountingRouter.get("/cda-data-pack/:fiscalYearId", async (req, res) => {
+accountingRouter.get("/cda-data-pack/:fiscalYearId", requireModule("cdaDataPack"), async (req, res) => {
   res.json(await buildCdaDataPack(req.params.fiscalYearId));
 });
 
@@ -157,7 +158,7 @@ async function computeAllowanceReport() {
   return { rows, totalAllowance };
 }
 
-accountingRouter.get("/allowance-report", async (_req, res) => {
+accountingRouter.get("/allowance-report", requireModule("allowanceReport"), async (_req, res) => {
   res.json(await computeAllowanceReport());
 });
 
@@ -167,6 +168,7 @@ accountingRouter.get("/allowance-report", async (_req, res) => {
 accountingRouter.post(
   "/allowance-report/post",
   requireRole("manager", "accountant", "admin"),
+  requireModule("allowanceReport"),
   async (req, res) => {
     const { rows, totalAllowance } = await computeAllowanceReport();
 

@@ -169,6 +169,7 @@ receiptsRouter.get("/:id", async (req, res) => {
     isReprint: receipt.printCount > 1,
     amount: Number(receipt.amount),
     date: receipt.createdAt,
+    memberId: receipt.member.id,
     memberName: receipt.member.fullName,
     memberNumber: receipt.member.memberNumber,
     particulars,

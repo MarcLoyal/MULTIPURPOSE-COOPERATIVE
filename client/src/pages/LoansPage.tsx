@@ -189,12 +189,16 @@ export function LoansPage() {
               loans.map((loan) => (
                 <tr key={loan.id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-2">
-                    <Link to={`/loans/${loan.id}`} className="text-slate-900 font-medium hover:underline">
+                    <Link to={`/members/${loan.memberId}`} className="text-slate-900 font-medium hover:underline">
                       {loan.member?.fullName ?? loan.memberId}
                     </Link>
                   </td>
-                  <td className="px-4 py-2">{loan.loanProduct}</td>
-                  <td className="px-4 py-2">{Number(loan.principalAmount).toFixed(2)}</td>
+                  <td className="px-4 py-2">
+                    <Link to={`/loans/${loan.id}`} className="hover:underline">
+                      {loan.loanProduct}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2">{formatCurrency(loan.principalAmount)}</td>
                   <td className="px-4 py-2">
                     <Badge value={loan.status} />
                   </td>

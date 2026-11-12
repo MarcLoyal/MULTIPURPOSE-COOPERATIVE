@@ -18,11 +18,14 @@ const COLOR_MAP: Record<string, string> = {
   restructured: "bg-sky-100 text-sky-800",
 };
 
-export function Badge({ value }: { value: string }) {
+// `label` overrides the default humanizeEnum(value) text (e.g. a
+// bilingual "Aktibo (Active)" on the member profile) without touching
+// the color-by-value logic every other Badge usage still relies on.
+export function Badge({ value, label }: { value: string; label?: string }) {
   const color = COLOR_MAP[value] ?? "bg-slate-100 text-slate-700";
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${color}`}>
-      {humanizeEnum(value)}
+      {label ?? humanizeEnum(value)}
     </span>
   );
 }

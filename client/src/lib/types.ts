@@ -31,6 +31,14 @@ export type MemberLogin = {
 };
 
 export type MemberStatus = "active" | "inactive" | "resigned" | "deceased" | "terminated";
+export type CivilStatus = "single" | "married" | "widowed" | "separated";
+
+export type MemberBeneficiary = {
+  id: string;
+  name: string;
+  relationship: string;
+  sortOrder: number;
+};
 
 export type Member = {
   id: string;
@@ -43,6 +51,16 @@ export type Member = {
   status: MemberStatus;
   beneficiaryName?: string | null;
   beneficiaryRelationship?: string | null;
+  // IWMPC Phase 1 additions — all optional/nullable.
+  birthDate?: string | null;
+  civilStatus?: CivilStatus | null;
+  idType?: string | null;
+  idNumber?: string | null;
+  // Present on GET /members/:id, deliberately absent from the list
+  // endpoint's response (see members.routes.ts) — never assume this is
+  // populated outside the member profile page.
+  photoUrl?: string | null;
+  beneficiaries?: MemberBeneficiary[];
   createdAt: string;
   shareCapitalAccount?: { id: string; balance: string } | null;
   loanAccounts?: LoanAccount[];
@@ -91,6 +109,7 @@ export type ReceiptPrintData = {
   isReprint: boolean;
   amount: number;
   date: string;
+  memberId: string;
   memberName: string;
   memberNumber: string;
   particulars: string;
@@ -120,6 +139,7 @@ export type DisbursementVoucherPrintData = {
   amount: number;
   amountInWords: string;
   date: string;
+  memberId: string;
   payeeName: string;
   memberNumber: string;
   purpose: string;
@@ -512,11 +532,13 @@ export type MemberStatement = {
     balance: number;
     transactions: { id: string; type: ShareCapitalTxnType; amount: number; createdAt: string }[];
   } | null;
+  lastDividend: { amount: number; date: string } | null;
   loans: {
     id: string;
     loanProduct: string;
     principalAmount: number;
     status: LoanStatus;
+    aging: LoanAging | null;
     transactions: {
       id: string;
       type: "release" | "repayment" | "penalty" | "restructure" | "reclassify";
@@ -532,6 +554,14 @@ export type MemberStatement = {
     status: DepositAccountStatus;
     transactions: { id: string; type: DepositTxnType; amount: number; balanceAfter: number; createdAt: string }[];
   }[];
+};
+
+export type TimelineEntry = {
+  date: string;
+  type: string;
+  amount: number;
+  reference: { kind: "receipt" | "voucher"; id: string; sequenceNumber: number } | null;
+  linkTo: string | null;
 };
 
 export type EquityChangeRow = {

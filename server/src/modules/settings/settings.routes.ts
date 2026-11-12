@@ -4,13 +4,54 @@ import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole, requireStaff } from "../../middleware/auth";
 import { writeAuditLog } from "../../lib/audit";
 import { badRequest } from "../../lib/httpError";
+import { getModuleSettings, requireModule } from "../../lib/moduleSettings";
 
 export const settingsRouter = Router();
 settingsRouter.use(requireAuth, requireStaff);
 
+/**
+ * GET /api/settings/modules
+ * The per-deployment module on/off map (see ModuleSetting's schema
+ * comment) — read by every staff role regardless of the "advanced"
+ * flag, since the client needs this to know what to hide from nav in
+ * the first place. Everything else in this file (and the few routes
+ * elsewhere gated the same way) IS behind requireModule("advanced").
+ */
+settingsRouter.get("/modules", async (_req, res) => {
+  res.json(await getModuleSettings());
+});
+
+const updateModuleSchema = z.object({ enabled: z.boolean() });
+
+settingsRouter.patch("/modules/:key", requireRole("admin"), async (req, res) => {
+  const { enabled } = updateModuleSchema.parse(req.body);
+  const existing = await prisma.moduleSetting.findUnique({ where: { key: req.params.key } });
+  if (!existing) throw badRequest(`Unknown module key: ${req.params.key}`);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.moduleSetting.update({
+      where: { key: existing.key },
+      data: { enabled, updatedById: req.user!.id },
+    });
+    if (existing.enabled !== enabled) {
+      await writeAuditLog(tx, {
+        entityType: "ModuleSetting",
+        entityId: existing.key,
+        action: "update",
+        previousValue: { enabled: existing.enabled },
+        newValue: { enabled: result.enabled },
+        performedBy: { id: req.user!.id, name: req.user!.name },
+      });
+    }
+    return result;
+  });
+
+  res.json(updated);
+});
+
 // Read-only for any authenticated role, same as the rest of the app's
 // reference data (account labels, etc.) — editing is what's gated.
-settingsRouter.get("/allowance-rates", async (_req, res) => {
+settingsRouter.get("/allowance-rates", requireModule("advanced"), async (_req, res) => {
   const rows = await prisma.allowanceRateSetting.findMany({ orderBy: { sortOrder: "asc" } });
   res.json(rows);
 });
@@ -32,6 +73,7 @@ const updateSchema = z.object({
 settingsRouter.put(
   "/allowance-rates",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const { rates } = updateSchema.parse(req.body);
 
@@ -75,7 +117,7 @@ settingsRouter.put(
 // fiscalYears.routes.ts's distribute handler). Seeded at 0%/0% by the
 // migration, same inert-default convention as allowance rates: posting
 // at 0% distributes nothing until the board sets real percentages.
-settingsRouter.get("/dividend-rates", async (_req, res) => {
+settingsRouter.get("/dividend-rates", requireModule("advanced"), async (_req, res) => {
   const row = await prisma.dividendDistributionSetting.findFirst();
   res.json(row);
 });
@@ -92,6 +134,7 @@ const dividendRatesSchema = z
 settingsRouter.put(
   "/dividend-rates",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const data = dividendRatesSchema.parse(req.body);
     const existing = await prisma.dividendDistributionSetting.findFirst();
@@ -131,7 +174,7 @@ settingsRouter.put(
 // Placeholder loanable-amount rule — see LoanLimitSetting's schema
 // comment and GET /api/loans/loan-limit/:memberId. Not board-approved;
 // the client marks this setting and its effect as unconfirmed.
-settingsRouter.get("/loan-limit", async (_req, res) => {
+settingsRouter.get("/loan-limit", requireModule("advanced"), async (_req, res) => {
   const row = await prisma.loanLimitSetting.findFirst();
   res.json(row);
 });
@@ -143,6 +186,7 @@ const loanLimitSchema = z.object({
 settingsRouter.put(
   "/loan-limit",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const data = loanLimitSchema.parse(req.body);
     const existing = await prisma.loanLimitSetting.findFirst();
@@ -173,7 +217,7 @@ settingsRouter.put(
 // The label printed on a receipt — see ReceiptSetting's schema
 // comment for why it's "Payment Receipt" by default, not
 // "Official Receipt".
-settingsRouter.get("/receipt-label", async (_req, res) => {
+settingsRouter.get("/receipt-label", requireModule("advanced"), async (_req, res) => {
   const row = await prisma.receiptSetting.findFirst();
   res.json(row);
 });
@@ -185,6 +229,7 @@ const receiptLabelSchema = z.object({
 settingsRouter.put(
   "/receipt-label",
   requireRole("manager", "accountant", "admin"),
+  requireModule("advanced"),
   async (req, res) => {
     const data = receiptLabelSchema.parse(req.body);
     const existing = await prisma.receiptSetting.findFirst();
